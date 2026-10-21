@@ -15,8 +15,8 @@ struct MenuBarView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 2) {
-                            ForEach(store.tunnels) { tunnel in
-                                TunnelRow(session: store.session(for: tunnel.id))
+                            ForEach(store.sessions) { session in
+                                TunnelRow(session: session)
                             }
                         }
                         .padding(6)
@@ -70,7 +70,7 @@ struct MenuBarView: View {
     }
 
     private func summary(_ store: TunnelStore) -> String {
-        let phases = store.tunnels.map { store.session(for: $0.id).status.phase }
+        let phases = store.sessions.map(\.status.phase)
         let failed = phases.filter(\.isFailed).count
         let running = phases.filter(\.isRunning).count
         if failed > 0 { return "\(failed) 條連線失敗" }

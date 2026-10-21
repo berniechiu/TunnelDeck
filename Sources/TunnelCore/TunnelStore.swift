@@ -12,7 +12,7 @@ public final class TunnelStore {
     private let config: ConfigStore
     private let executable: String
     private let notify: @MainActor (Tunnel, TunnelFailure) -> Void
-    @ObservationIgnored private var sessions: [Tunnel.ID: TunnelSession] = [:]
+    @ObservationIgnored private var sessionsByID: [Tunnel.ID: TunnelSession] = [:]
 
     public init(
         config: ConfigStore,
@@ -26,12 +26,17 @@ public final class TunnelStore {
         tunnels.forEach(makeSession)
     }
 
-    public func session(for id: Tunnel.ID) -> TunnelSession {
-        sessions[id]!
+    /// One session per tunnel, in list order. Reads `tunnels`, so views track additions and removals.
+    public var sessions: [TunnelSession] {
+        tunnels.compactMap { sessionsByID[$0.id] }
+    }
+
+    public func session(for id: Tunnel.ID) -> TunnelSession? {
+        sessionsByID[id]
     }
 
     private func makeSession(_ tunnel: Tunnel) {
-        sessions[tunnel.id] = TunnelSession(tunnel: tunnel, executable: executable, notify: notify)
+        sessionsByID[tunnel.id] = TunnelSession(tunnel: tunnel, executable: executable, notify: notify)
     }
 
     public func upsert(_ tunnel: Tunnel) throws {
@@ -45,7 +50,7 @@ public final class TunnelStore {
         }
         try config.save(updated)
         tunnels = updated
-        if let session = sessions[tunnel.id] {
+        if let session = sessionsByID[tunnel.id] {
             session.update(tunnel)
         } else {
             makeSession(tunnel)
@@ -56,7 +61,7 @@ public final class TunnelStore {
         let remaining = tunnels.filter { $0.id != id }
         try config.save(remaining)
         tunnels = remaining
-        sessions.removeValue(forKey: id)?.stop()
+        sessionsByID.removeValue(forKey: id)?.stop()
     }
 
     /// An unsaved copy for the editor; its ports still clash with the original until edited.
@@ -70,8 +75,7 @@ public final class TunnelStore {
 
     /// The most urgent state across all tunnels: failed, then connecting or reconnecting, then connected.
     public var aggregate: AggregateState {
-        // Reading `tunnels` (observed) rather than `sessions` (ignored) keeps views tracking list changes.
-        let phases = tunnels.compactMap { sessions[$0.id]?.status.phase }
+        let phases = sessions.map(\.status.phase)
         if phases.contains(where: { if case .failed = $0 { true } else { false } }) { return .failed }
         if phases.contains(where: {
             switch $0 {
@@ -83,20 +87,20 @@ public final class TunnelStore {
     }
 
     public func stopAll() {
-        sessions.values.forEach { $0.stop() }
+        sessions.forEach { $0.stop() }
     }
 
     public func networkChanged() {
-        sessions.values.forEach { $0.networkChanged() }
+        sessions.forEach { $0.networkChanged() }
     }
 
     /// Stops everything and blocks until the ssh processes are gone, for use while the app quits.
     public func shutdown(timeout: TimeInterval = 3) {
         stopAll()
         let deadline = Date().addingTimeInterval(timeout)
-        while sessions.values.contains(where: \.isProcessRunning), Date() < deadline {
+        while sessions.contains(where: \.isProcessRunning), Date() < deadline {
             Thread.sleep(forTimeInterval: 0.05)
         }
-        sessions.values.forEach { $0.killImmediately() }
+        sessions.forEach { $0.killImmediately() }
     }
 }

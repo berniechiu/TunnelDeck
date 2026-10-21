@@ -10,7 +10,8 @@ public struct LogLine: Identifiable, Sendable {
 
 /// Runs one tunnel's ssh process and feeds its lifecycle through `TunnelStateMachine`.
 @MainActor @Observable
-public final class TunnelSession {
+public final class TunnelSession: Identifiable {
+    public nonisolated let id: Tunnel.ID
     public private(set) var tunnel: Tunnel
     public private(set) var status = TunnelStatus()
     public private(set) var log: [LogLine] = []
@@ -37,6 +38,7 @@ public final class TunnelSession {
         homeDirectory: String = NSHomeDirectory(),
         notify: @escaping @MainActor (Tunnel, TunnelFailure) -> Void
     ) {
+        id = tunnel.id
         self.tunnel = tunnel
         self.executable = executable
         self.homeDirectory = homeDirectory

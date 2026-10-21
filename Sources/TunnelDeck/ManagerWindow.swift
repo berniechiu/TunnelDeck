@@ -27,11 +27,11 @@ private struct TunnelManager: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selection) {
-                ForEach(store.tunnels) { tunnel in
-                    SidebarRow(session: store.session(for: tunnel.id)).tag(tunnel.id)
+                ForEach(store.sessions) { session in
+                    SidebarRow(session: session).tag(session.id)
                         .contextMenu {
-                            Button("複製") { duplicate(tunnel.id) }
-                            Button("刪除…", role: .destructive) { confirmingDelete = tunnel }
+                            Button("複製") { duplicate(session.id) }
+                            Button("刪除…", role: .destructive) { confirmingDelete = session.tunnel }
                         }
                 }
             }
@@ -51,8 +51,8 @@ private struct TunnelManager: View {
                     if let saved { selection = saved.id }
                 }
                 .id(draft.id)
-            } else if let selection, store.tunnels.contains(where: { $0.id == selection }) {
-                TunnelDetailView(store: store, session: store.session(for: selection)) {
+            } else if let selection, let session = store.session(for: selection) {
+                TunnelDetailView(store: store, session: session) {
                     duplicate(selection)
                 } onDelete: {
                     confirmingDelete = store.tunnels.first { $0.id == selection }

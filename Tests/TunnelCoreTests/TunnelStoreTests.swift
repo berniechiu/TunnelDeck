@@ -19,6 +19,13 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
         #expect(store.tunnels == [tunnel])
     }
 
+    @Test func sessionsFollowTunnelOrderAndUnknownIdsHaveNone() throws {
+        let tunnels = [forwardTunnel(localPort: 3308), forwardTunnel(localPort: 3309)]
+        let (store, _) = try makeStore(try FakeSSH(FakeSSH.listen), tunnels: tunnels)
+        #expect(store.sessions.map(\.tunnel.id) == tunnels.map(\.id))
+        #expect(store.session(for: UUID()) == nil)
+    }
+
     @Test func upsertPersists() throws {
         let (store, config) = try makeStore(try FakeSSH(FakeSSH.listen))
         var tunnel = forwardTunnel(localPort: 3308)
@@ -41,9 +48,9 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
         let fake = try FakeSSH(FakeSSH.listen)
         let tunnel = forwardTunnel(localPort: try freePort())
         let (store, config) = try makeStore(fake, tunnels: [tunnel])
-        store.session(for: tunnel.id).start()
-        #expect(await eventually { store.session(for: tunnel.id).pid != nil })
-        let pid = try #require(store.session(for: tunnel.id).pid)
+        store.session(for: tunnel.id)!.start()
+        #expect(await eventually { store.session(for: tunnel.id)!.pid != nil })
+        let pid = try #require(store.session(for: tunnel.id)!.pid)
 
         try store.delete(tunnel.id)
         #expect(try config.load() == [])
@@ -65,7 +72,7 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
         let failing = Tunnel(name: "bad", host: "bastion", forwards: [Forward(localPort: try freePort(), remoteHost: "db", remotePort: 3306)])
         let (store, _) = try makeStore(try FakeSSH(FakeSSH.listen), tunnels: [tunnel, failing])
         #expect(store.aggregate == .idle)
-        store.session(for: tunnel.id).start()
+        store.session(for: tunnel.id)!.start()
         #expect(store.aggregate == .connecting)
         #expect(await eventually { store.aggregate == .connected })
 
@@ -74,7 +81,7 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
         var occupied = failing
         occupied.forwards[0].localPort = listener.port
         try store.upsert(occupied)
-        store.session(for: failing.id).start()
+        store.session(for: failing.id)!.start()
         #expect(store.aggregate == .failed)
         store.stopAll()
     }
@@ -82,9 +89,9 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
     @Test func reconnectingCountsAsConnecting() async throws {
         let tunnel = forwardTunnel(localPort: try freePort())
         let (store, _) = try makeStore(try FakeSSH(FakeSSH.timeout), tunnels: [tunnel])
-        store.session(for: tunnel.id).start()
+        store.session(for: tunnel.id)!.start()
         #expect(await eventually {
-            if case .reconnecting = store.session(for: tunnel.id).status.phase { return true }
+            if case .reconnecting = store.session(for: tunnel.id)!.status.phase { return true }
             return false
         })
         #expect(store.aggregate == .connecting)
@@ -103,9 +110,9 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
         let fake = try FakeSSH(FakeSSH.listen)
         let tunnels = [forwardTunnel(localPort: try freePort()), forwardTunnel(localPort: try freePort())]
         let (store, _) = try makeStore(fake, tunnels: tunnels)
-        tunnels.forEach { store.session(for: $0.id).start() }
-        #expect(await eventually { tunnels.allSatisfy { store.session(for: $0.id).pid != nil } })
-        let pids = tunnels.compactMap { store.session(for: $0.id).pid }
+        tunnels.forEach { store.session(for: $0.id)!.start() }
+        #expect(await eventually { tunnels.allSatisfy { store.session(for: $0.id)!.pid != nil } })
+        let pids = tunnels.compactMap { store.session(for: $0.id)!.pid }
 
         store.stopAll()
         #expect(await eventually { pids.allSatisfy { !isAlive($0) } })
@@ -115,9 +122,9 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
         let fake = try FakeSSH(FakeSSH.listen)
         let tunnel = forwardTunnel(localPort: try freePort())
         let (store, _) = try makeStore(fake, tunnels: [tunnel])
-        store.session(for: tunnel.id).start()
-        #expect(await eventually { store.session(for: tunnel.id).pid != nil })
-        let pid = try #require(store.session(for: tunnel.id).pid)
+        store.session(for: tunnel.id)!.start()
+        #expect(await eventually { store.session(for: tunnel.id)!.pid != nil })
+        let pid = try #require(store.session(for: tunnel.id)!.pid)
 
         store.shutdown()
         #expect(!isAlive(pid))

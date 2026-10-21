@@ -100,7 +100,7 @@ struct TunnelEditorView: View {
     }
 
     private var saveTitle: String {
-        isNew ? "新增" : (store.session(for: original.id).status.phase.isRunning ? "儲存並重新連線" : "儲存")
+        isNew ? "新增" : (store.session(for: original.id)?.status.phase.isRunning == true ? "儲存並重新連線" : "儲存")
     }
 
     @ViewBuilder
