@@ -104,7 +104,7 @@ struct TunnelRow: View {
                     Text(StatusText.line(for: session.status, now: context.date))
                         .font(.caption)
                         .foregroundStyle(session.status.phase.isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
-                        .lineLimit(2)
+                        .lineLimit(4)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

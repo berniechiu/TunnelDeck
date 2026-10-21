@@ -141,17 +141,7 @@ private struct OverviewView: View {
                     }
                 }
             }
-            if let occupant = session.portOccupant {
-                Label(occupantText(occupant), systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .padding(.top, 4)
-            }
         }
-    }
-
-    private func occupantText(_ occupant: PortOccupant) -> String {
-        guard let pid = occupant.pid else { return "占用 port 的程序屬於其他使用者，無法辨識" }
-        return "占用 port 的程序：\(occupant.processName ?? "未知")（PID \(pid)）"
     }
 
     private var command: some View {

@@ -15,7 +15,6 @@ public final class TunnelSession {
     public private(set) var status = TunnelStatus()
     public private(set) var log: [LogLine] = []
     public private(set) var sockets = SocketSnapshot()
-    public private(set) var portOccupant: PortOccupant?
     public private(set) var pid: pid_t?
 
     private let executable: String
@@ -60,10 +59,8 @@ public final class TunnelSession {
             startWhenExited = true
             return
         }
-        portOccupant = nil
         if let busy = tunnel.forwards.first(where: { !SocketInspector.isPortFree($0.localPort) }) {
-            portOccupant = SocketInspector.occupant(ofLocalPort: busy.localPort)
-            status.phase = .failed(.portInUse(busy.localPort))
+            status.phase = .failed(.portInUse(busy.localPort, SocketInspector.occupant(ofLocalPort: busy.localPort)))
             return
         }
         send(.start)
@@ -146,7 +143,11 @@ public final class TunnelSession {
         pid = nil
         pollTask?.cancel()
         sockets = SocketSnapshot()
-        send(.processExited(SSHFailureClassifier.classify(stderr: runStderr.joined(separator: "\n"))))
+        var failure = SSHFailureClassifier.classify(stderr: runStderr.joined(separator: "\n"))
+        if case .portInUse(let port, nil) = failure {
+            failure = .portInUse(port, SocketInspector.occupant(ofLocalPort: port))
+        }
+        send(.processExited(failure))
         if startWhenExited {
             startWhenExited = false
             start()

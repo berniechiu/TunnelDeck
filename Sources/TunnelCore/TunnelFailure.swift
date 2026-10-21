@@ -4,7 +4,7 @@ public enum TunnelFailure: Equatable, Sendable {
     case hostKeyChanged
     case hostKeyUnknown
     case authenticationFailed
-    case portInUse(Int)
+    case portInUse(Int, PortOccupant?)
     case configError(String)
     case hostNotFound
     case connectionRefused
@@ -28,8 +28,8 @@ public enum TunnelFailure: Equatable, Sendable {
             "尚未信任這台主機。請先在終端機手動 ssh 連線一次，確認主機指紋後再啟動。"
         case .authenticationFailed:
             "金鑰驗證失敗。請確認金鑰檔正確，且有 passphrase 的金鑰已加入 ssh-agent。"
-        case .portInUse(let port):
-            "本機 port \(port) 已被其他程式占用。"
+        case .portInUse(let port, let occupant):
+            Self.portInUseMessage(port: port, occupant: occupant)
         case .configError(let line):
             "SSH 設定檔有誤：\(line)"
         case .hostNotFound:
@@ -45,6 +45,18 @@ public enum TunnelFailure: Equatable, Sendable {
         case .unknown(let line):
             "ssh 結束：\(line)"
         }
+    }
+
+    private static func portInUseMessage(port: Int, occupant: PortOccupant?) -> String {
+        guard let occupant else { return "本機 port \(port) 已被占用，請改用其他本機 port 或稍後再試。" }
+        guard let pid = occupant.pid else {
+            return "本機 port \(port) 已被其他使用者或系統服務占用。可在終端機執行 sudo lsof -nP -iTCP:\(port) -sTCP:LISTEN 查出占用的程式，或改用其他本機 port。"
+        }
+        let name = occupant.processName ?? "未知程式"
+        if name == "ssh" {
+            return "本機 port \(port) 已被「ssh」（PID \(pid)）占用，通常是其他 tunnel 工具或殘留的 ssh 連線。可在終端機執行 kill \(pid) 結束它，或改用其他本機 port。"
+        }
+        return "本機 port \(port) 已被「\(name)」（PID \(pid)）占用。請結束該程式，或改用其他本機 port。"
     }
 }
 
@@ -63,7 +75,7 @@ public enum SSHFailureClassifier {
         if has("Host key verification failed") { return .hostKeyUnknown }
         if has("Permission denied (") { return .authenticationFailed }
         if let match = text.firstMatch(of: /bind \[127\.0\.0\.1\]:(\d+): Address already in use/), let port = Int(match.1) {
-            return .portInUse(port)
+            return .portInUse(port, nil)
         }
         if has("bad configuration options") {
             return .configError(lines.first { $0.contains(/\sline \d+:\s/) } ?? lines[0])

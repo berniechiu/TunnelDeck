@@ -107,9 +107,35 @@ func makeSession(_ fake: FakeSSH, port: Int) -> TunnelSession {
         defer { listener.close() }
         let session = makeSession(fake, port: listener.port)
         session.start()
-        #expect(session.status.phase == .failed(.portInUse(listener.port)))
-        #expect(session.portOccupant?.pid == getpid())
+        guard case .failed(.portInUse(listener.port, let occupant)) = session.status.phase else {
+            Issue.record("expected portInUse, got \(session.status.phase)")
+            return
+        }
+        #expect(occupant?.pid == getpid())
         #expect(fake.launches == 0)
+    }
+
+    @Test func portTakenAfterLaunchIsReportedWithOccupant() async throws {
+        // ssh loses the race for the port: something else grabs it between the pre-check and ssh's bind.
+        let fake = try FakeSSH(#"""
+        /usr/bin/perl -MIO::Socket::INET -e '$s = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => $ARGV[0], Listen => 5) or die; sleep 10' "$PORT" </dev/null >/dev/null 2>&1 &
+        echo $! > "$MARKER.squatter"
+        sleep 0.5
+        echo "bind [127.0.0.1]:$PORT: Address already in use" >&2
+        exit 255
+        """#)
+        let port = try freePort()
+        let session = makeSession(fake, port: port)
+        session.start()
+        defer {
+            if let pid = try? String(contentsOf: URL(filePath: fake.marker.path + ".squatter"), encoding: .utf8) {
+                kill(pid_t(pid.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0, SIGKILL)
+            }
+        }
+        #expect(await eventually {
+            if case .failed(.portInUse(port, let occupant)) = session.status.phase { return occupant?.processName == "perl" }
+            return false
+        })
     }
 
     @Test func droppedConnectionReconnects() async throws {

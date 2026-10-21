@@ -12,7 +12,7 @@ import Testing
     """, TunnelFailure.hostKeyChanged),
     ("No ED25519 host key is known for bastion and you have requested strict checking.\nHost key verification failed.\n", .hostKeyUnknown),
     ("deploy@bastion.example.com: Permission denied (publickey).\n", .authenticationFailed),
-    ("bind [127.0.0.1]:3308: Address already in use\nchannel_setup_fwd_listener_tcpip: cannot listen to port: 3308\nCould not request local forwarding.\n", .portInUse(3308)),
+    ("bind [127.0.0.1]:3308: Address already in use\nchannel_setup_fwd_listener_tcpip: cannot listen to port: 3308\nCould not request local forwarding.\n", .portInUse(3308, nil)),
     ("/Users/me/.ssh/config: line 12: Bad configuration option: foo\n/Users/me/.ssh/config: terminating, 1 bad configuration options\n",
      .configError("/Users/me/.ssh/config: line 12: Bad configuration option: foo")),
     ("Can't open user config file /Users/me/.ssh/config: Permission denied\n", .configError("Can't open user config file /Users/me/.ssh/config: Permission denied")),
@@ -61,7 +61,7 @@ func classifiesOnlyWhatEndedTheRun(stderr: String, expected: TunnelFailure) {
 }
 
 @Test func nonRetryableFailures() {
-    let nonRetryable: [TunnelFailure] = [.hostKeyChanged, .hostKeyUnknown, .authenticationFailed, .portInUse(1), .configError("x")]
+    let nonRetryable: [TunnelFailure] = [.hostKeyChanged, .hostKeyUnknown, .authenticationFailed, .portInUse(1, nil), .configError("x")]
     #expect(nonRetryable.allSatisfy { !$0.isRetryable })
     let retryable: [TunnelFailure] = [.hostNotFound, .connectionRefused, .timedOut, .networkUnreachable, .connectionLost, .unknown("x")]
     #expect(retryable.allSatisfy { $0.isRetryable })
@@ -73,7 +73,7 @@ func classifiesOnlyWhatEndedTheRun(stderr: String, expected: TunnelFailure) {
 }
 
 @Test func noMessageSuggestsBypassingHostKeyChecks() {
-    let all: [TunnelFailure] = [.hostKeyChanged, .hostKeyUnknown, .authenticationFailed, .portInUse(3308), .configError("x"),
+    let all: [TunnelFailure] = [.hostKeyChanged, .hostKeyUnknown, .authenticationFailed, .portInUse(3308, nil), .configError("x"),
                                 .hostNotFound, .connectionRefused, .timedOut, .networkUnreachable, .connectionLost, .unknown("x")]
     for failure in all {
         #expect(!failure.message.contains("StrictHostKeyChecking"))
@@ -83,7 +83,20 @@ func classifiesOnlyWhatEndedTheRun(stderr: String, expected: TunnelFailure) {
 }
 
 @Test func messagesCarryDetails() {
-    #expect(TunnelFailure.portInUse(3308).message.contains("3308"))
+    #expect(TunnelFailure.portInUse(3308, nil).message.contains("3308"))
     #expect(TunnelFailure.configError("line 12: Bad").message.contains("line 12: Bad"))
     #expect(TunnelFailure.unknown("weird").message.contains("weird"))
+}
+
+@Test func portInUseNamesTheOccupantAndHowToFreeIt() {
+    let other = TunnelFailure.portInUse(3310, PortOccupant(pid: 4242, processName: "mysqld"))
+    #expect(other.message == "本機 port 3310 已被「mysqld」（PID 4242）占用。請結束該程式，或改用其他本機 port。")
+
+    let ssh = TunnelFailure.portInUse(3310, PortOccupant(pid: 4242, processName: "ssh"))
+    #expect(ssh.message == "本機 port 3310 已被「ssh」（PID 4242）占用，通常是其他 tunnel 工具或殘留的 ssh 連線。可在終端機執行 kill 4242 結束它，或改用其他本機 port。")
+
+    let hidden = TunnelFailure.portInUse(3310, PortOccupant(pid: nil, processName: nil))
+    #expect(hidden.message == "本機 port 3310 已被其他使用者或系統服務占用。可在終端機執行 sudo lsof -nP -iTCP:3310 -sTCP:LISTEN 查出占用的程式，或改用其他本機 port。")
+
+    #expect(TunnelFailure.portInUse(3310, nil).message == "本機 port 3310 已被占用，請改用其他本機 port 或稍後再試。")
 }
