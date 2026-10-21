@@ -1,0 +1,189 @@
+import Darwin
+import Foundation
+import Observation
+
+public struct LogLine: Identifiable, Sendable {
+    public var id: Int
+    public var date: Date
+    public var text: String
+}
+
+/// Runs one tunnel's ssh process and feeds its lifecycle through `TunnelStateMachine`.
+@MainActor @Observable
+public final class TunnelSession {
+    public private(set) var tunnel: Tunnel
+    public private(set) var status = TunnelStatus()
+    public private(set) var log: [LogLine] = []
+    public private(set) var sockets = SocketSnapshot()
+    public private(set) var portOccupant: PortOccupant?
+    public private(set) var pid: pid_t?
+
+    private let executable: String
+    private let homeDirectory: String
+    private let notify: @MainActor (Tunnel, TunnelFailure) -> Void
+
+    private var process: Process?
+    private var runID = 0
+    private var runStderr: [String] = []
+    private var startWhenExited = false
+    private var retryTask: Task<Void, Never>?
+    private var pollTask: Task<Void, Never>?
+
+    private static let logLimit = 1000
+    private static let stderrLimit = 200
+
+    public init(
+        tunnel: Tunnel,
+        executable: String = SSHCommand.executable,
+        homeDirectory: String = NSHomeDirectory(),
+        notify: @escaping @MainActor (Tunnel, TunnelFailure) -> Void
+    ) {
+        self.tunnel = tunnel
+        self.executable = executable
+        self.homeDirectory = homeDirectory
+        self.notify = notify
+    }
+
+    var isProcessRunning: Bool { process?.isRunning == true }
+
+    func killImmediately() {
+        guard let process, process.isRunning else { return }
+        kill(process.processIdentifier, SIGKILL)
+        let deadline = Date().addingTimeInterval(0.5)
+        while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
+    }
+
+    public func start() {
+        guard !status.phase.isRunning else { return }
+        // The previous ssh still holds the ports; start once it is gone.
+        guard process == nil else {
+            startWhenExited = true
+            return
+        }
+        portOccupant = nil
+        if let busy = tunnel.forwards.first(where: { !SocketInspector.isPortFree($0.localPort) }) {
+            portOccupant = SocketInspector.occupant(ofLocalPort: busy.localPort)
+            status.phase = .failed(.portInUse(busy.localPort))
+            return
+        }
+        send(.start)
+    }
+
+    public func stop() {
+        startWhenExited = false
+        send(.stop)
+    }
+
+    public func networkChanged() {
+        send(.networkChanged)
+    }
+
+    public func update(_ tunnel: Tunnel) {
+        let wasRunning = status.phase.isRunning
+        if wasRunning { stop() }
+        self.tunnel = tunnel
+        if wasRunning { start() }
+    }
+
+    private func send(_ event: TunnelEvent) {
+        for effect in TunnelStateMachine.reduce(&status, event, now: Date()) {
+            switch effect {
+            case .launch: launch()
+            case .terminate: terminate()
+            case .scheduleRetry(let delay): scheduleRetry(after: delay)
+            case .cancelRetry: retryTask?.cancel()
+            case .notify(let failure): notify(tunnel, failure)
+            }
+        }
+    }
+
+    private func launch() {
+        let process = Process()
+        process.executableURL = URL(filePath: executable)
+        process.arguments = SSHCommand.arguments(for: tunnel, homeDirectory: homeDirectory)
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        let pipe = Pipe()
+        process.standardError = pipe
+
+        runID += 1
+        let run = runID
+        runStderr = []
+        do {
+            try process.run()
+        } catch {
+            send(.processExited(.unknown(error.localizedDescription)))
+            return
+        }
+        self.process = process
+        pid = process.processIdentifier
+
+        let handle = pipe.fileHandleForReading
+        Task.detached { [weak self] in
+            do {
+                for try await line in handle.bytes.lines {
+                    await self?.append(line, run: run)
+                }
+            } catch {}
+            process.waitUntilExit()
+            await self?.processEnded(run: run)
+        }
+        startPolling(run: run)
+    }
+
+    private func append(_ text: String, run: Int) {
+        let id = (log.last?.id ?? 0) + 1
+        log.append(LogLine(id: id, date: Date(), text: text))
+        if log.count > Self.logLimit { log.removeFirst(log.count - Self.logLimit) }
+        guard run == runID else { return }
+        runStderr.append(text)
+        if runStderr.count > Self.stderrLimit { runStderr.removeFirst() }
+    }
+
+    private func processEnded(run: Int) {
+        guard run == runID else { return }
+        process = nil
+        pid = nil
+        pollTask?.cancel()
+        sockets = SocketSnapshot()
+        send(.processExited(SSHFailureClassifier.classify(stderr: runStderr.joined(separator: "\n"))))
+        if startWhenExited {
+            startWhenExited = false
+            start()
+        }
+    }
+
+    private func terminate() {
+        guard let process else { return }
+        process.terminate()
+        let pid = process.processIdentifier
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            if process.isRunning { kill(pid, SIGKILL) }
+        }
+    }
+
+    private func scheduleRetry(after delay: Duration) {
+        retryTask?.cancel()
+        retryTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.send(.retryDue)
+        }
+    }
+
+    private func startPolling(run: Int) {
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, run == self.runID, let pid = self.pid else { return }
+                self.sockets = SocketInspector.snapshot(pid: pid)
+                if case .connecting = self.status.phase,
+                   Set(self.tunnel.forwards.map(\.localPort)).isSubset(of: self.sockets.listeningPorts) {
+                    self.send(.forwardsListening)
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+}
