@@ -57,6 +57,7 @@ Click a tunnel in the menu to open it in Settings, where **Overview**, **Configu
 
 ```bash
 brew tap ff2248/tunneldeck
+brew trust ff2248/tunneldeck   # Homebrew loads third-party taps only after you trust them
 brew install --cask tunneldeck
 ```
 
