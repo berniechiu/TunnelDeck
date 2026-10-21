@@ -55,12 +55,15 @@ public struct Strings: Sendable {
     public let duration: @Sendable (TimeInterval) -> String
     public let portListening: @Sendable (_ port: Int, _ clients: Int) -> String
     public let portNotListening: @Sendable (Int) -> String
+    public let clientProcess: @Sendable (_ name: String, _ pid: Int32) -> String
+    public let moreClients: @Sendable (Int) -> String
     public let failure: @Sendable (TunnelFailure) -> String
     public let loadError: @Sendable (_ path: String, _ error: String) -> String
 
     // Settings window
     public let tunnels: String
-    public let general: String
+    public let preferences: String
+    public let done: String
     public let language: String
     public let selectTunnel: String
     public let cannotStart: String
@@ -152,10 +155,13 @@ public struct Strings: Sendable {
         duration: { compactDuration($0, units: ("d", "h", "m", "s")) },
         portListening: { port, clients in "Local port \(port) is listening, \(clients) client\(clients == 1 ? "" : "s") connected" },
         portNotListening: { "Local port \($0) is not listening" },
+        clientProcess: { name, pid in "\(name) (PID \(pid))" },
+        moreClients: { "\($0) more" },
         failure: englishFailure,
         loadError: { path, error in "Couldn't read the settings file \(path): \(error)" },
         tunnels: "Tunnels",
-        general: "General",
+        preferences: "Preferences…",
+        done: "Done",
         language: "Language",
         selectTunnel: "Select a tunnel",
         cannotStart: "Can't start",
@@ -239,10 +245,13 @@ public struct Strings: Sendable {
         duration: { compactDuration($0, units: (" 天", " 小時", " 分", " 秒")) },
         portListening: { port, clients in "本機 port \(port) 已在監聽，\(clients) 個連線使用中" },
         portNotListening: { "本機 port \($0) 尚未監聽" },
+        clientProcess: { name, pid in "\(name)（PID \(pid)）" },
+        moreClients: { "還有 \($0) 個" },
         failure: chineseFailure,
         loadError: { path, error in "無法讀取設定檔 \(path)：\(error)" },
         tunnels: "Tunnel",
-        general: "一般",
+        preferences: "偏好設定…",
+        done: "完成",
         language: "語言",
         selectTunnel: "選擇一條 tunnel",
         cannotStart: "無法啟動",

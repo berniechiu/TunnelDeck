@@ -14,6 +14,13 @@ public struct SocketSnapshot: Equatable, Sendable {
     }
 }
 
+/// A local process connected to a forwarded port.
+public struct PortClient: Equatable, Sendable {
+    public var pid: pid_t
+    public var processName: String?
+    public var connections: Int
+}
+
 public struct PortOccupant: Equatable, Sendable {
     /// nil when the port is held by a process this user cannot inspect.
     public var pid: pid_t?
@@ -55,8 +62,28 @@ public enum SocketInspector {
         return isPortFree(port) ? nil : PortOccupant(pid: nil, processName: nil)
     }
 
+    /// Same-user processes with an established connection to `127.0.0.1` on one of `ports`, by port.
+    /// Scans every process, so call it when the client count changes rather than on every poll.
+    public static func clientProcesses(connectedTo ports: Set<Int>, excluding excluded: pid_t) -> [Int: [PortClient]] {
+        var result: [Int: [PortClient]] = [:]
+        for pid in allPids() where pid != excluded {
+            let counts = Dictionary(
+                tcpSockets(pid: pid)
+                    .filter { $0.state == TSI_S_ESTABLISHED && $0.remoteIsLoopback && ports.contains($0.remotePort) }
+                    .map { ($0.remotePort, 1) },
+                uniquingKeysWith: +
+            )
+            for (port, connections) in counts {
+                result[port, default: []].append(PortClient(pid: pid, processName: processName(pid), connections: connections))
+            }
+        }
+        return result
+    }
+
     private struct TCPSocket {
         var localPort: Int
+        var remotePort: Int
+        var remoteIsLoopback: Bool
         var state: Int32
     }
 
@@ -75,8 +102,11 @@ public enum SocketInspector {
             guard proc_pidfdinfo(pid, fd.proc_fd, PROC_PIDFDSOCKETINFO, &info, infoSize) == infoSize,
                   info.psi.soi_kind == SOCKINFO_TCP else { return nil }
             let tcp = info.psi.soi_proto.pri_tcp
-            let port = Int(UInt16(bigEndian: UInt16(truncatingIfNeeded: tcp.tcpsi_ini.insi_lport)))
-            return TCPSocket(localPort: port, state: tcp.tcpsi_state)
+            let ini = tcp.tcpsi_ini
+            func port(_ raw: Int32) -> Int { Int(UInt16(bigEndian: UInt16(truncatingIfNeeded: raw))) }
+            let remoteIsLoopback = ini.insi_vflag & UInt8(INI_IPV4) != 0
+                && ini.insi_faddr.ina_46.i46a_addr4.s_addr == inet_addr("127.0.0.1")
+            return TCPSocket(localPort: port(ini.insi_lport), remotePort: port(ini.insi_fport), remoteIsLoopback: remoteIsLoopback, state: tcp.tcpsi_state)
         }
     }
 

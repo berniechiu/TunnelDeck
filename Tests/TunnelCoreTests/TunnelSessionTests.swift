@@ -32,7 +32,8 @@ struct FakeSSH {
         ((try? String(contentsOf: marker, encoding: .utf8)) ?? "").split(separator: "\n").count
     }
 
-    static let listen = #"exec /usr/bin/perl -MIO::Socket::INET -e '$s = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => $ARGV[0], Listen => 5, ReuseAddr => 1) or die; sleep 600' "$PORT""#
+    /// Listens like ssh does and accepts clients, holding each connection open.
+    static let listen = #"exec /usr/bin/perl -MIO::Socket::INET -e '$s = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => $ARGV[0], Listen => 5, ReuseAddr => 1) or die; my @c; while (my $c = $s->accept) { push @c, $c }' "$PORT""#
 
     static let authFailure = #"echo 'deploy@bastion: Permission denied (publickey).' >&2; exit 255"#
 
@@ -99,6 +100,25 @@ func makeSession(_ fake: FakeSSH, port: Int) -> TunnelSession {
         session.stop()
         #expect(session.status.phase == .stopped)
         #expect(await eventually { !isAlive(pid) })
+    }
+
+    @Test func clientsUsingTheTunnelAreListed() async throws {
+        let fake = try FakeSSH(FakeSSH.listen)
+        let port = try freePort()
+        let session = makeSession(fake, port: port)
+        defer { session.stop() }
+        session.start()
+        #expect(await eventually { session.status.phase.isConnected })
+
+        let client = socket(AF_INET, SOCK_STREAM, 0)
+        var addr = sockaddr_in.loopback(port: port)
+        _ = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(client, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
+        #expect(await eventually { session.clients[port]?.contains { $0.pid == getpid() } == true })
+
+        close(client)
+        #expect(await eventually(timeout: .seconds(8)) { session.clients[port] == nil })
     }
 
     @Test func occupiedPortFailsWithoutLaunching() async throws {

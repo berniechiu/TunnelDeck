@@ -62,3 +62,12 @@ private let sampleDurations: [TimeInterval] = [45, 13 * 60, 2 * 3600 + 13 * 60, 
     let zh = Strings.for(.traditionalChinese)
     #expect(sampleDurations.map(zh.duration) == ["45 秒", "13 分", "2 小時 13 分", "2 天 3 小時"])
 }
+
+@Test func clientLabels() {
+    let en = Strings.for(.english)
+    #expect(en.clientProcess("TablePlus", 812) == "TablePlus (PID 812)")
+    #expect(en.moreClients(2) == "2 more")
+    let zh = Strings.for(.traditionalChinese)
+    #expect(zh.clientProcess("TablePlus", 812) == "TablePlus（PID 812）")
+    #expect(zh.moreClients(2) == "還有 2 個")
+}

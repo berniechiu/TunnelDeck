@@ -27,17 +27,12 @@ extension EnvironmentValues {
     @Entry var strings = Strings.for(.default)
 }
 
-enum SettingsSelection: Hashable {
-    case tunnel(Tunnel.ID)
-    case general
-}
-
 @MainActor @Observable
 final class AppModel {
     let store: TunnelStore?
     /// Why the settings file could not be read; the store is nil in that case.
     let loadError: String?
-    var selection: SettingsSelection?
+    var selection: Tunnel.ID?
     private let notifier = Notifier()
     @ObservationIgnored private var events: SystemEvents?
 

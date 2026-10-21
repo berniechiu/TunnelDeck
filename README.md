@@ -20,12 +20,13 @@ People who reach private databases or services through an SSH bastion and are ti
 
 - **One switch per tunnel**: start and stop each tunnel from the menu. A tunnel can forward several local ports through the same SSH connection.
 - **Status at a glance**: the menu bar icon gets a green, orange or red badge when a tunnel is connected, connecting or failed, and stays plain when everything is stopped.
-- **Details in the menu**: each tunnel shows its destination, every forward's remote target, whether the local port is listening, how many clients are connected, how long it has been up and how often it reconnected.
+- **Details in the menu**: each tunnel shows its destination, every forward's remote target, whether the local port is listening, how long it has been up and how often it reconnected.
+- **Who is connected**: under each forward, the programs using it right now, such as your database client or a Rails console, with their app icon and PID.
 - **Automatic reconnect**: a tunnel that drops after running for 30 seconds or more reconnects right away. After that, or when it drops sooner, it waits between attempts, starting at 2 to 4 seconds and doubling up to every 30 seconds. Waking from sleep or getting a network back retries right away.
 - **Clear failures**: errors that retrying can't fix, such as a rejected key, a changed host key or a broken `~/.ssh/config`, stop the tunnel and say what to do. A busy local port names the program holding it, with its PID.
 - **Notifications** when an automatic reconnect fails or a tunnel stops on its own.
 - **Inspection**: per-tunnel ssh log and the equivalent `ssh` command, ready to paste into Terminal.
-- **English and Traditional Chinese** interface, switchable in Settings.
+- **English and Traditional Chinese** interface, switchable in Preferences.
 - **Safe defaults**: see [Security](#security).
 
 ## Usage
@@ -48,7 +49,7 @@ Before the first connection to a new server, run `ssh <host>` once in Terminal a
 
 Click a tunnel in the menu to open it in Settings, where **Overview**, **Configuration** and **Log** show its details. Saving a running tunnel reconnects it.
 
-**Settings → General → Language** switches between English (default) and 繁體中文.
+**Preferences…** at the bottom of the Settings sidebar switches the language between English (default) and 繁體中文.
 
 ## Install
 

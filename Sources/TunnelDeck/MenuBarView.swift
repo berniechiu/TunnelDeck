@@ -17,7 +17,7 @@ struct MenuBarView: View {
                     ScrollView {
                         VStack(spacing: 2) {
                             ForEach(store.sessions) { session in
-                                TunnelRow(session: session) { openSettings(.tunnel(session.id)) }
+                                TunnelRow(session: session) { openSettings(session.id) }
                             }
                         }
                         .padding(6)
@@ -84,7 +84,7 @@ struct MenuBarView: View {
         }
     }
 
-    private func openSettings(_ selection: SettingsSelection?) {
+    private func openSettings(_ selection: Tunnel.ID?) {
         if let selection { model.selection = selection }
         openWindow(id: SettingsWindow.id)
         NSApp.activate()
@@ -104,18 +104,21 @@ private struct TunnelRow: View {
                 Text(session.tunnel.name).font(.body.weight(.medium))
                 Text(destination).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 ForEach(session.tunnel.forwards) { forward in
-                    HStack(spacing: 6) {
-                        PortChip(
-                            port: forward.localPort,
-                            listening: session.sockets.isListening(on: forward.localPort),
-                            clients: session.sockets.clients(on: forward.localPort)
-                        )
-                        Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
-                        Text(verbatim: "\(forward.remoteHost):\(forward.remotePort)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            PortChip(
+                                port: forward.localPort,
+                                listening: session.sockets.isListening(on: forward.localPort),
+                                clients: session.sockets.clients(on: forward.localPort)
+                            )
+                            Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
+                            Text(verbatim: "\(forward.remoteHost):\(forward.remotePort)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        ClientList(clients: session.clients[forward.localPort] ?? []).padding(.leading, 8)
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {

@@ -29,22 +29,26 @@ private struct SettingsContent: View {
     @State private var draft: Tunnel?
     @State private var confirmingDelete: Tunnel?
     @State private var deleteError: String?
+    @State private var showingPreferences = false
 
     var body: some View {
         NavigationSplitView {
             List(selection: $model.selection) {
                 Section(strings.tunnels) {
                     ForEach(store.sessions) { session in
-                        SidebarRow(session: session).tag(SettingsSelection.tunnel(session.id))
+                        SidebarRow(session: session)
                             .contextMenu {
                                 Button(strings.duplicate) { duplicate(session.id) }
                                 Button(strings.deleteEllipsis, role: .destructive) { confirmingDelete = session.tunnel }
                             }
                     }
                 }
-                Section {
-                    Label(strings.general, systemImage: "gearshape").tag(SettingsSelection.general)
-                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button(strings.preferences, systemImage: "gearshape") { showingPreferences = true }
+                    .buttonStyle(.borderless)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 240)
             .toolbar {
@@ -70,6 +74,7 @@ private struct SettingsContent: View {
         } message: { _ in
             Text(strings.deleteMessage)
         }
+        .sheet(isPresented: $showingPreferences) { PreferencesView() }
         .alert(strings.deleteFailed, isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
         } message: {
             Text(deleteError ?? "")
@@ -81,32 +86,19 @@ private struct SettingsContent: View {
         if let draft {
             TunnelEditorView(store: store, original: draft, isNew: true) { saved in
                 self.draft = nil
-                if let saved { model.selection = .tunnel(saved.id) }
+                if let saved { model.selection = saved.id }
             }
             .id(draft.id)
-        } else {
-            switch model.selection {
-            case .general:
-                GeneralSettingsView()
-            case .tunnel(let id):
-                if let session = store.session(for: id) {
-                    TunnelDetailView(store: store, session: session) {
-                        duplicate(id)
-                    } onDelete: {
-                        confirmingDelete = session.tunnel
-                    }
-                    .id(id)
-                } else {
-                    placeholder
-                }
-            case nil:
-                placeholder
+        } else if let id = model.selection, let session = store.session(for: id) {
+            TunnelDetailView(store: store, session: session) {
+                duplicate(id)
+            } onDelete: {
+                confirmingDelete = session.tunnel
             }
+            .id(id)
+        } else {
+            ContentUnavailableView(strings.selectTunnel, systemImage: "arrow.left.arrow.right.circle")
         }
-    }
-
-    private var placeholder: some View {
-        ContentUnavailableView(strings.selectTunnel, systemImage: "arrow.left.arrow.right.circle")
     }
 
     private func duplicate(_ id: Tunnel.ID) {
@@ -117,7 +109,7 @@ private struct SettingsContent: View {
     private func delete(_ id: Tunnel.ID) {
         do {
             try store.delete(id)
-            if model.selection == .tunnel(id) { model.selection = nil }
+            if model.selection == id { model.selection = nil }
         } catch {
             deleteError = error.localizedDescription
         }
@@ -142,16 +134,23 @@ private struct SidebarRow: View {
     }
 }
 
-private struct GeneralSettingsView: View {
+private struct PreferencesView: View {
     @AppStorage(AppLanguage.storageKey) private var language = AppLanguage.default
     @Environment(\.strings) private var strings
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Form {
-            Picker(strings.language, selection: $language) {
-                ForEach(AppLanguage.allCases) { Text(verbatim: $0.displayName).tag($0) }
+        VStack(alignment: .trailing, spacing: 0) {
+            Form {
+                Picker(strings.language, selection: $language) {
+                    ForEach(AppLanguage.allCases) { Text(verbatim: $0.displayName).tag($0) }
+                }
             }
+            .formStyle(.grouped)
+            Button(strings.done) { dismiss() }
+                .keyboardShortcut(.defaultAction)
+                .padding([.horizontal, .bottom], 20)
         }
-        .formStyle(.grouped)
+        .frame(width: 380)
     }
 }

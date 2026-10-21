@@ -16,6 +16,8 @@ public final class TunnelSession: Identifiable {
     public private(set) var status = TunnelStatus()
     public private(set) var log: [LogLine] = []
     public private(set) var sockets = SocketSnapshot()
+    /// Local processes connected to each forwarded port, refreshed when the connection count changes.
+    public private(set) var clients: [Int: [PortClient]] = [:]
     public private(set) var pid: pid_t?
 
     private let executable: String
@@ -146,6 +148,7 @@ public final class TunnelSession: Identifiable {
         pid = nil
         pollTask?.cancel()
         sockets = SocketSnapshot()
+        clients = [:]
         send(.processExited(withOccupant(SSHFailureClassifier.classify(stderr: runStderr.joined(separator: "\n")))))
         if startWhenExited {
             startWhenExited = false
@@ -184,7 +187,14 @@ public final class TunnelSession: Identifiable {
                 guard let self, run == self.runID, let pid = self.pid else { return }
                 let snapshot = SocketInspector.snapshot(pid: pid)
                 // Assigning an equal value would still invalidate every view that reads `sockets`.
-                if snapshot != self.sockets { self.sockets = snapshot }
+                if snapshot != self.sockets {
+                    if snapshot.clientCounts != self.sockets.clientCounts {
+                        self.clients = snapshot.clientCounts.isEmpty
+                            ? [:]
+                            : SocketInspector.clientProcesses(connectedTo: Set(snapshot.clientCounts.keys), excluding: pid)
+                    }
+                    self.sockets = snapshot
+                }
                 if case .connecting = self.status.phase,
                    self.tunnel.forwards.allSatisfy({ snapshot.isListening(on: $0.localPort) }) {
                     self.send(.forwardsListening)

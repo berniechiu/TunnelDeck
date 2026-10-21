@@ -60,6 +60,39 @@ struct StatusLine: View {
     }
 }
 
+/// The local programs using one forward, named and iconed like the Dock does when they are apps.
+struct ClientList: View {
+    let clients: [PortClient]
+    var limit = 3
+    @Environment(\.strings) private var strings
+
+    var body: some View {
+        if !clients.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(clients.prefix(limit), id: \.pid) { client in
+                    let app = NSRunningApplication(processIdentifier: client.pid)
+                    HStack(spacing: 5) {
+                        if let icon = app?.icon {
+                            Image(nsImage: icon).resizable().frame(width: 14, height: 14)
+                        } else {
+                            Image(systemName: "terminal").frame(width: 14, height: 14).foregroundStyle(.secondary)
+                        }
+                        Text(strings.clientProcess(app?.localizedName ?? client.processName ?? "?", client.pid))
+                        if client.connections > 1 {
+                            Text(verbatim: "×\(client.connections)").foregroundStyle(.tertiary).monospacedDigit()
+                        }
+                    }
+                }
+                if clients.count > limit {
+                    Text(strings.moreClients(clients.count - limit)).foregroundStyle(.tertiary)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+}
+
 struct StatusDot: View {
     let phase: TunnelPhase
     @Environment(\.strings) private var strings

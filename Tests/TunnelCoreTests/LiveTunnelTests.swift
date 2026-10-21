@@ -43,6 +43,7 @@ struct LiveTunnelTests {
         }
         #expect(rc == 0)
         #expect(await eventually { session.sockets.clientCounts[port] == 1 })
+        #expect(await eventually { session.clients[port]?.contains { $0.pid == getpid() } == true })
         close(client)
 
         let firstPid = try #require(session.pid)

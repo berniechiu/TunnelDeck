@@ -128,13 +128,17 @@ private struct OverviewView: View {
                 Divider().gridCellUnsizedAxes(.horizontal)
                 ForEach(session.tunnel.forwards) { forward in
                     let listening = session.sockets.isListening(on: forward.localPort)
-                    GridRow {
+                    GridRow(alignment: .firstTextBaseline) {
                         Text(verbatim: "127.0.0.1:\(forward.localPort)").monospacedDigit().textSelection(.enabled)
-                        Text(verbatim: "\(forward.remoteHost):\(forward.remotePort)").textSelection(.enabled)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(verbatim: "\(forward.remoteHost):\(forward.remotePort)").textSelection(.enabled)
+                            ClientList(clients: session.clients[forward.localPort] ?? [], limit: 10)
+                        }
                         Label(listening ? strings.listening : strings.notListening, systemImage: listening ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(listening ? Color.green : Color.secondary)
                         Text(String(session.sockets.clients(on: forward.localPort))).monospacedDigit()
                     }
+
                 }
             }
         }

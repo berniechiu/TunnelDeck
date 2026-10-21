@@ -85,3 +85,21 @@ extension sockaddr_in {
     listener.close()
     #expect(SocketInspector.isPortFree(listener.port))
 }
+
+@Test func clientProcessesAreFoundByTheirRemotePort() throws {
+    let listener = try TestListener()
+    defer { listener.close() }
+    listener.connectClient()
+
+    let clients = SocketInspector.clientProcesses(connectedTo: [listener.port], excluding: -1)
+    let mine = try #require(clients[listener.port]?.first { $0.pid == getpid() })
+    #expect(mine.connections == 1)
+    #expect(mine.processName != nil)
+}
+
+@Test func theExcludedProcessIsNotItsOwnClient() throws {
+    let listener = try TestListener()
+    defer { listener.close() }
+    listener.connectClient()
+    #expect(SocketInspector.clientProcesses(connectedTo: [listener.port], excluding: getpid())[listener.port] == nil)
+}
