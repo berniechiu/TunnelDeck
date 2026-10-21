@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 public enum AggregateState: Sendable {
-    case idle, active, attention
+    case idle, connected, connecting, failed
 }
 
 @MainActor @Observable
@@ -68,16 +68,18 @@ public final class TunnelStore {
         return copy
     }
 
+    /// The most urgent state across all tunnels: failed, then connecting or reconnecting, then connected.
     public var aggregate: AggregateState {
         // Reading `tunnels` (observed) rather than `sessions` (ignored) keeps views tracking list changes.
         let phases = tunnels.compactMap { sessions[$0.id]?.status.phase }
+        if phases.contains(where: { if case .failed = $0 { true } else { false } }) { return .failed }
         if phases.contains(where: {
             switch $0 {
-            case .failed, .reconnecting: true
+            case .connecting, .reconnecting: true
             default: false
             }
-        }) { return .attention }
-        return phases.contains(where: \.isRunning) ? .active : .idle
+        }) { return .connecting }
+        return phases.contains(where: \.isRunning) ? .connected : .idle
     }
 
     public func stopAll() {

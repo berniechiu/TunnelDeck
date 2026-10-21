@@ -66,7 +66,8 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
         let (store, _) = try makeStore(try FakeSSH(FakeSSH.listen), tunnels: [tunnel, failing])
         #expect(store.aggregate == .idle)
         store.session(for: tunnel.id).start()
-        #expect(store.aggregate == .active)
+        #expect(store.aggregate == .connecting)
+        #expect(await eventually { store.aggregate == .connected })
 
         let listener = try TestListener()
         defer { listener.close() }
@@ -74,7 +75,19 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
         occupied.forwards[0].localPort = listener.port
         try store.upsert(occupied)
         store.session(for: failing.id).start()
-        #expect(store.aggregate == .attention)
+        #expect(store.aggregate == .failed)
+        store.stopAll()
+    }
+
+    @Test func reconnectingCountsAsConnecting() async throws {
+        let tunnel = forwardTunnel(localPort: try freePort())
+        let (store, _) = try makeStore(try FakeSSH(FakeSSH.timeout), tunnels: [tunnel])
+        store.session(for: tunnel.id).start()
+        #expect(await eventually {
+            if case .reconnecting = store.session(for: tunnel.id).status.phase { return true }
+            return false
+        })
+        #expect(store.aggregate == .connecting)
         store.stopAll()
     }
 

@@ -44,14 +44,27 @@ final class AppModel {
     }
 }
 
+/// Colored by the most urgent tunnel state; the symbol shape changes too, so the state reads without color.
 struct MenuBarIcon: View {
     let store: TunnelStore?
 
     var body: some View {
-        switch store?.aggregate ?? .attention {
-        case .idle: Image(systemName: "arrow.left.arrow.right.circle")
-        case .active: Image(systemName: "arrow.left.arrow.right.circle.fill")
-        case .attention: Image(systemName: "exclamationmark.triangle.fill")
+        Image(nsImage: Self.image(for: store?.aggregate ?? .failed))
+    }
+
+    private static func image(for state: AggregateState) -> NSImage {
+        let (symbol, color, label): (String, NSColor?, String) = switch state {
+        case .idle: ("arrow.left.arrow.right.circle", nil, "全部停止")
+        case .connected: ("arrow.left.arrow.right.circle.fill", .systemGreen, "已連線")
+        case .connecting: ("arrow.triangle.2.circlepath.circle.fill", .systemOrange, "連線中")
+        case .failed: ("exclamationmark.triangle.fill", .systemRed, "連線失敗")
         }
+        var configuration = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+        if let color { configuration = configuration.applying(.init(paletteColors: [color])) }
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "TunnelDeck：\(label)")!
+            .withSymbolConfiguration(configuration)!
+        // Template images are tinted to the menu bar's own color, which would drop the state color.
+        image.isTemplate = color == nil
+        return image
     }
 }
