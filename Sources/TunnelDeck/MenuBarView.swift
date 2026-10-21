@@ -71,7 +71,7 @@ struct MenuBarView: View {
 
     private func summary(_ store: TunnelStore) -> String {
         let phases = store.tunnels.map { store.session(for: $0.id).status.phase }
-        let failed = phases.filter { if case .failed = $0 { true } else { false } }.count
+        let failed = phases.filter(\.isFailed).count
         let running = phases.filter(\.isRunning).count
         if failed > 0 { return "\(failed) 條連線失敗" }
         return running > 0 ? "\(running) 條運作中" : "全部停止"
@@ -103,7 +103,7 @@ struct TunnelRow: View {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(StatusText.line(for: session.status, now: context.date))
                         .font(.caption)
-                        .foregroundStyle(isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(session.status.phase.isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -120,9 +120,5 @@ struct TunnelRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .contentShape(.rect)
-    }
-
-    private var isFailed: Bool {
-        if case .failed = session.status.phase { true } else { false }
     }
 }

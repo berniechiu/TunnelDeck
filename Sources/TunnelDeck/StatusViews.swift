@@ -11,6 +11,10 @@ extension TunnelPhase {
         }
     }
 
+    var isFailed: Bool {
+        if case .failed = self { true } else { false }
+    }
+
     var isTransient: Bool {
         switch self {
         case .connecting, .reconnecting: true
