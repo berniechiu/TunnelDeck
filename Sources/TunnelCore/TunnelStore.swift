@@ -12,7 +12,7 @@ public final class TunnelStore {
     private let config: ConfigStore
     private let executable: String
     private let notify: @MainActor (Tunnel, TunnelFailure) -> Void
-    private var sessions: [Tunnel.ID: TunnelSession] = [:]
+    @ObservationIgnored private var sessions: [Tunnel.ID: TunnelSession] = [:]
 
     public init(
         config: ConfigStore,
@@ -23,14 +23,15 @@ public final class TunnelStore {
         self.executable = executable
         self.notify = notify
         tunnels = try config.load()
+        tunnels.forEach(makeSession)
     }
 
     public func session(for id: Tunnel.ID) -> TunnelSession {
-        if let session = sessions[id] { return session }
-        let tunnel = tunnels.first { $0.id == id }!
-        let session = TunnelSession(tunnel: tunnel, executable: executable, notify: notify)
-        sessions[id] = session
-        return session
+        sessions[id]!
+    }
+
+    private func makeSession(_ tunnel: Tunnel) {
+        sessions[tunnel.id] = TunnelSession(tunnel: tunnel, executable: executable, notify: notify)
     }
 
     public func upsert(_ tunnel: Tunnel) throws {
@@ -44,14 +45,18 @@ public final class TunnelStore {
         }
         try config.save(updated)
         tunnels = updated
-        sessions[tunnel.id]?.update(tunnel)
+        if let session = sessions[tunnel.id] {
+            session.update(tunnel)
+        } else {
+            makeSession(tunnel)
+        }
     }
 
     public func delete(_ id: Tunnel.ID) throws {
         let remaining = tunnels.filter { $0.id != id }
         try config.save(remaining)
-        sessions.removeValue(forKey: id)?.stop()
         tunnels = remaining
+        sessions.removeValue(forKey: id)?.stop()
     }
 
     /// An unsaved copy for the editor; its ports still clash with the original until edited.
