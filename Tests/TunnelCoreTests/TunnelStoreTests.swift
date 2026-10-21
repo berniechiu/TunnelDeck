@@ -60,7 +60,7 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
     @Test func duplicateMakesUnsavedDraftWithNewIdentity() throws {
         let tunnel = forwardTunnel(localPort: 3308)
         let (store, _) = try makeStore(try FakeSSH(FakeSSH.listen), tunnels: [tunnel])
-        let draft = store.duplicate(tunnel.id)
+        let draft = store.duplicate(tunnel.id, named: Strings.for(.traditionalChinese).duplicateName)
         #expect(draft?.id != tunnel.id)
         #expect(draft?.forwards.first?.id != tunnel.forwards.first?.id)
         #expect(draft?.name == "test 副本")

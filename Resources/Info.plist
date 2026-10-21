@@ -3,15 +3,16 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>zh-Hant</string>
-	<key>CFBundleLocalizations</key>
-	<array>
-		<string>zh-Hant</string>
-	</array>
+	<string>en</string>
 	<key>CFBundleExecutable</key>
 	<string>TunnelDeck</string>
 	<key>CFBundleIdentifier</key>
-	<string>dev.ff2248.TunnelDeck</string>
+	<string>io.github.ff2248.tunneldeck</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh-Hant</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>TunnelDeck</string>
 	<key>CFBundlePackageType</key>

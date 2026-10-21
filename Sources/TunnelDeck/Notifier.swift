@@ -16,7 +16,7 @@ final class Notifier {
     func post(tunnel: Tunnel, failure: TunnelFailure) {
         let content = UNMutableNotificationContent()
         content.title = tunnel.name
-        content.body = failure.message
+        content.body = Strings.for(AppLanguage.current).failure(failure)
         center?.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 }

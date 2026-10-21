@@ -19,45 +19,6 @@ public enum TunnelFailure: Equatable, Sendable {
         case .hostNotFound, .connectionRefused, .timedOut, .networkUnreachable, .connectionLost, .unknown: true
         }
     }
-
-    public var message: String {
-        switch self {
-        case .hostKeyChanged:
-            "主機金鑰與 known_hosts 紀錄不符，可能遭到中間人攻擊。請先確認伺服器是否重建過，確認無誤後再自行更新 known_hosts。"
-        case .hostKeyUnknown:
-            "尚未信任這台主機。請先在終端機手動 ssh 連線一次，確認主機指紋後再啟動。"
-        case .authenticationFailed:
-            "金鑰驗證失敗。請確認金鑰檔正確，且有 passphrase 的金鑰已加入 ssh-agent。"
-        case .portInUse(let port, let occupant):
-            Self.portInUseMessage(port: port, occupant: occupant)
-        case .configError(let line):
-            "SSH 設定檔有誤：\(line)"
-        case .hostNotFound:
-            "找不到主機，請確認主機名稱或網路連線。"
-        case .connectionRefused:
-            "主機拒絕連線。"
-        case .timedOut:
-            "連線逾時。"
-        case .networkUnreachable:
-            "網路無法連到主機。"
-        case .connectionLost:
-            "連線中斷。"
-        case .unknown(let line):
-            "ssh 結束：\(line)"
-        }
-    }
-
-    private static func portInUseMessage(port: Int, occupant: PortOccupant?) -> String {
-        guard let occupant else { return "本機 port \(port) 已被占用，請改用其他本機 port 或稍後再試。" }
-        guard let pid = occupant.pid else {
-            return "本機 port \(port) 已被其他使用者或系統服務占用。可在終端機執行 sudo lsof -nP -iTCP:\(port) -sTCP:LISTEN 查出占用的程式，或改用其他本機 port。"
-        }
-        let name = occupant.processName ?? "未知程式"
-        if name == "ssh" {
-            return "本機 port \(port) 已被「ssh」（PID \(pid)）占用，通常是其他 tunnel 工具或殘留的 ssh 連線。可在終端機執行 kill \(pid) 結束它，或改用其他本機 port。"
-        }
-        return "本機 port \(port) 已被「\(name)」（PID \(pid)）占用。請結束該程式，或改用其他本機 port。"
-    }
 }
 
 public enum SSHFailureClassifier {

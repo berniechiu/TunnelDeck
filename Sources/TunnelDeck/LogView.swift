@@ -4,6 +4,7 @@ import TunnelCore
 
 struct LogView: View {
     let lines: [LogLine]
+    @Environment(\.strings) private var strings
 
     var body: some View {
         VStack(spacing: 0) {
@@ -13,7 +14,7 @@ struct LogView: View {
                         ForEach(lines) { line in
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Text(line.date.formatted(date: .omitted, time: .standard)).foregroundStyle(.secondary)
-                                Text(line.text)
+                                Text(verbatim: line.text)
                             }
                             .id(line.id)
                         }
@@ -29,13 +30,13 @@ struct LogView: View {
             }
             .overlay {
                 if lines.isEmpty {
-                    ContentUnavailableView("尚無 log", systemImage: "text.alignleft", description: Text("啟動連線後，ssh 的輸出會顯示在這裡。"))
+                    ContentUnavailableView(strings.noLog, systemImage: "text.alignleft", description: Text(strings.noLogDescription))
                 }
             }
             Divider()
             HStack {
                 Spacer()
-                Button("拷貝全部", systemImage: "doc.on.doc") {
+                Button(strings.copyAll, systemImage: "doc.on.doc") {
                     let text = lines.map { "\($0.date.formatted(date: .omitted, time: .standard))  \($0.text)" }.joined(separator: "\n")
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)

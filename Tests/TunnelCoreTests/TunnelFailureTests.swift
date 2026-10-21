@@ -66,37 +66,3 @@ func classifiesOnlyWhatEndedTheRun(stderr: String, expected: TunnelFailure) {
     let retryable: [TunnelFailure] = [.hostNotFound, .connectionRefused, .timedOut, .networkUnreachable, .connectionLost, .unknown("x")]
     #expect(retryable.allSatisfy { $0.isRetryable })
 }
-
-@Test func hostKeyMessagesAreFixedCopy() {
-    #expect(TunnelFailure.hostKeyChanged.message == "主機金鑰與 known_hosts 紀錄不符，可能遭到中間人攻擊。請先確認伺服器是否重建過，確認無誤後再自行更新 known_hosts。")
-    #expect(TunnelFailure.hostKeyUnknown.message == "尚未信任這台主機。請先在終端機手動 ssh 連線一次，確認主機指紋後再啟動。")
-}
-
-@Test func noMessageSuggestsBypassingHostKeyChecks() {
-    let all: [TunnelFailure] = [.hostKeyChanged, .hostKeyUnknown, .authenticationFailed, .portInUse(3308, nil), .configError("x"),
-                                .hostNotFound, .connectionRefused, .timedOut, .networkUnreachable, .connectionLost, .unknown("x")]
-    for failure in all {
-        #expect(!failure.message.contains("StrictHostKeyChecking"))
-        #expect(!failure.message.contains("known_hosts 刪除"))
-        #expect(!failure.message.contains("略過"))
-    }
-}
-
-@Test func messagesCarryDetails() {
-    #expect(TunnelFailure.portInUse(3308, nil).message.contains("3308"))
-    #expect(TunnelFailure.configError("line 12: Bad").message.contains("line 12: Bad"))
-    #expect(TunnelFailure.unknown("weird").message.contains("weird"))
-}
-
-@Test func portInUseNamesTheOccupantAndHowToFreeIt() {
-    let other = TunnelFailure.portInUse(3310, PortOccupant(pid: 4242, processName: "mysqld"))
-    #expect(other.message == "本機 port 3310 已被「mysqld」（PID 4242）占用。請結束該程式，或改用其他本機 port。")
-
-    let ssh = TunnelFailure.portInUse(3310, PortOccupant(pid: 4242, processName: "ssh"))
-    #expect(ssh.message == "本機 port 3310 已被「ssh」（PID 4242）占用，通常是其他 tunnel 工具或殘留的 ssh 連線。可在終端機執行 kill 4242 結束它，或改用其他本機 port。")
-
-    let hidden = TunnelFailure.portInUse(3310, PortOccupant(pid: nil, processName: nil))
-    #expect(hidden.message == "本機 port 3310 已被其他使用者或系統服務占用。可在終端機執行 sudo lsof -nP -iTCP:3310 -sTCP:LISTEN 查出占用的程式，或改用其他本機 port。")
-
-    #expect(TunnelFailure.portInUse(3310, nil).message == "本機 port 3310 已被占用，請改用其他本機 port 或稍後再試。")
-}

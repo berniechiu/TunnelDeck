@@ -16,6 +16,7 @@ struct TunnelEditorView: View {
     let isNew: Bool
     let onFinish: (Tunnel?) -> Void
 
+    @Environment(\.strings) private var strings
     @State private var name = ""
     @State private var host = ""
     @State private var user = ""
@@ -27,56 +28,56 @@ struct TunnelEditorView: View {
 
     var body: some View {
         Form {
-            Section("連線") {
-                TextField("名稱", text: $name)
-                issueText(issues.contains(.emptyName) ? "請輸入名稱" : nil)
-                TextField("主機", text: $host, prompt: Text("bastion.example.com、IP 或 ~/.ssh/config 的 Host"))
-                issueText(issues.contains(.invalidHost) ? "請輸入合法的主機名稱或 IP 位址" : nil)
-                TextField("使用者", text: $user, prompt: Text("選填"))
-                issueText(issues.contains(.invalidUser) ? "只能包含英數與 . _ -，且不能以 - 開頭" : nil)
-                TextField("SSH port", text: $port, prompt: Text("選填，預設 22"))
-                issueText(issues.contains(.invalidSSHPort) ? "port 須介於 1 到 65535" : nil)
-                LabeledContent("金鑰檔") {
+            Section(strings.connection) {
+                TextField(strings.name, text: $name)
+                issueText(.emptyName)
+                TextField(strings.host, text: $host, prompt: Text(strings.hostPrompt))
+                issueText(.invalidHost)
+                TextField(strings.user, text: $user, prompt: Text(strings.optional))
+                issueText(.invalidUser)
+                TextField(strings.sshPort, text: $port, prompt: Text(strings.sshPortPrompt))
+                issueText(.invalidSSHPort)
+                LabeledContent(strings.identityFile) {
                     HStack {
-                        Text(identityFile.isEmpty ? "使用 ssh 預設" : identityFile)
+                        Text(identityFile.isEmpty ? strings.sshDefault : identityFile)
                             .foregroundStyle(identityFile.isEmpty ? .secondary : .primary)
                             .lineLimit(1)
                             .truncationMode(.middle)
-                        Button("選擇…", action: chooseIdentityFile)
+                        Button(strings.choose, action: chooseIdentityFile)
                         if !identityFile.isEmpty {
-                            Button("清除") { identityFile = "" }
+                            Button(strings.clear) { identityFile = "" }
                         }
                     }
                 }
-                issueText(issues.contains(.invalidIdentityFile) ? "金鑰路徑須以 / 或 ~/ 開頭" : nil)
+                issueText(.invalidIdentityFile)
             }
 
-            Section("轉發") {
+            Section(strings.forwards) {
                 ForEach($forwards) { $forward in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
-                            TextField("本機 port", text: $forward.localPort, prompt: Text("本機 port"))
+                            TextField(strings.localPort, text: $forward.localPort, prompt: Text(strings.localPort))
                                 .frame(width: 90)
                             Image(systemName: "arrow.right").foregroundStyle(.secondary)
-                            TextField("遠端主機", text: $forward.remoteHost, prompt: Text("遠端主機"))
-                            Text(":").foregroundStyle(.secondary)
-                            TextField("遠端 port", text: $forward.remotePort, prompt: Text("port"))
+                            TextField(strings.remoteHost, text: $forward.remoteHost, prompt: Text(strings.remoteHost))
+                            Text(verbatim: ":").foregroundStyle(.secondary)
+                            TextField(strings.remotePort, text: $forward.remotePort, prompt: Text(strings.remotePort))
                                 .frame(width: 70)
-                            Button("移除轉發", systemImage: "minus.circle") {
+                            Button(strings.removeForward, systemImage: "minus.circle") {
                                 forwards.removeAll { $0.id == forward.id }
                             }
                             .labelStyle(.iconOnly)
                             .buttonStyle(.borderless)
                         }
                         .labelsHidden()
-                        issueText(forwardIssue(forward))
+                        forwardIssue(forward).map { Text($0).font(.caption).foregroundStyle(.red) }
                     }
                 }
-                Button("新增轉發", systemImage: "plus") {
+                Button(strings.addForward, systemImage: "plus") {
                     forwards.append(ForwardDraft(id: UUID(), localPort: "", remoteHost: "", remotePort: "3306"))
                 }
                 .buttonStyle(.borderless)
-                issueText(issues.contains(.noForwards) ? "至少需要一組轉發" : nil)
+                issueText(.noForwards)
             }
 
             if let saveError {
@@ -88,7 +89,7 @@ struct TunnelEditorView: View {
             HStack {
                 Spacer()
                 if isNew {
-                    Button("取消") { onFinish(nil) }
+                    Button(strings.cancel) { onFinish(nil) }
                 }
                 Button(saveTitle, action: save)
                     .buttonStyle(.borderedProminent)
@@ -100,25 +101,21 @@ struct TunnelEditorView: View {
     }
 
     private var saveTitle: String {
-        isNew ? "新增" : (store.session(for: original.id)?.status.phase.isRunning == true ? "儲存並重新連線" : "儲存")
+        if isNew { return strings.add }
+        return store.session(for: original.id)?.status.phase.isRunning == true ? strings.saveAndReconnect : strings.save
     }
 
     @ViewBuilder
-    private func issueText(_ text: String?) -> some View {
-        if let text {
-            Text(text).font(.caption).foregroundStyle(.red)
+    private func issueText(_ issue: ValidationIssue) -> some View {
+        if issues.contains(issue) {
+            Text(strings.validation(issue)).font(.caption).foregroundStyle(.red)
         }
     }
 
     private func forwardIssue(_ forward: ForwardDraft) -> String? {
-        if issues.contains(.invalidLocalPort(forward.id)) || issues.contains(.invalidRemotePort(forward.id)) {
-            return "port 須介於 1 到 65535"
-        }
-        if issues.contains(.invalidRemoteHost(forward.id)) { return "請輸入合法的遠端主機名稱或 IP 位址" }
-        if let port = Int(forward.localPort), issues.contains(.duplicateLocalPort(port)) {
-            return "本機 port \(port) 已被其他轉發使用"
-        }
-        return nil
+        let candidates: [ValidationIssue] = [.invalidLocalPort(forward.id), .invalidRemoteHost(forward.id), .invalidRemotePort(forward.id)]
+            + (Int(forward.localPort).map { [.duplicateLocalPort($0)] } ?? [])
+        return candidates.first(where: issues.contains).map(strings.validation)
     }
 
     private func load() {
@@ -163,7 +160,7 @@ struct TunnelEditorView: View {
         } catch let failure as ValidationFailure {
             issues = failure.issues
         } catch {
-            saveError = "儲存失敗：\(error.localizedDescription)"
+            saveError = strings.saveFailed(error.localizedDescription)
         }
     }
 

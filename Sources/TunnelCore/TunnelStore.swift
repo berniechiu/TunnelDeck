@@ -65,10 +65,10 @@ public final class TunnelStore {
     }
 
     /// An unsaved copy for the editor; its ports still clash with the original until edited.
-    public func duplicate(_ id: Tunnel.ID) -> Tunnel? {
+    public func duplicate(_ id: Tunnel.ID, named name: (String) -> String) -> Tunnel? {
         guard var copy = tunnels.first(where: { $0.id == id }) else { return nil }
         copy.id = UUID()
-        copy.name += " 副本"
+        copy.name = name(copy.name)
         copy.forwards = copy.forwards.map { Forward(localPort: $0.localPort, remoteHost: $0.remoteHost, remotePort: $0.remotePort) }
         return copy
     }

@@ -3,16 +3,15 @@ import SwiftUI
 import TunnelCore
 
 struct TunnelDetailView: View {
-    enum Tab: String, CaseIterable {
-        case overview = "概覽"
-        case settings = "設定"
-        case log = "Log"
+    enum Tab: CaseIterable {
+        case overview, configuration, log
     }
 
     let store: TunnelStore
     let session: TunnelSession
     let onDuplicate: () -> Void
     let onDelete: () -> Void
+    @Environment(\.strings) private var strings
     @State private var tab = Tab.overview
 
     var body: some View {
@@ -21,24 +20,32 @@ struct TunnelDetailView: View {
             Divider()
             switch tab {
             case .overview: OverviewView(session: session)
-            case .settings: TunnelEditorView(store: store, original: session.tunnel, isNew: false) { _ in }
+            case .configuration: TunnelEditorView(store: store, original: session.tunnel, isNew: false) { _ in }
             case .log: LogView(lines: session.log)
             }
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Picker("檢視", selection: $tab) {
-                    ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
+                Picker(strings.overview, selection: $tab) {
+                    ForEach(Tab.allCases, id: \.self) { Text(title(for: $0)) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
             ToolbarItem {
-                Menu("更多", systemImage: "ellipsis") {
-                    Button("複製", action: onDuplicate)
-                    Button("刪除…", role: .destructive, action: onDelete)
+                Menu(strings.more, systemImage: "ellipsis") {
+                    Button(strings.duplicate, action: onDuplicate)
+                    Button(strings.deleteEllipsis, role: .destructive, action: onDelete)
                 }
             }
+        }
+    }
+
+    private func title(for tab: Tab) -> String {
+        switch tab {
+        case .overview: strings.overview
+        case .configuration: strings.configuration
+        case .log: strings.log
         }
     }
 
@@ -48,13 +55,13 @@ struct TunnelDetailView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(session.tunnel.name).font(.title2.weight(.semibold))
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(StatusText.line(for: session.status, now: context.date))
+                    Text(strings.line(for: session.status, now: context.date))
                         .foregroundStyle(session.status.phase.isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                         .textSelection(.enabled)
                 }
             }
             Spacer()
-            Toggle(session.status.phase.isRunning ? "停止連線" : "啟動連線", isOn: Binding(
+            Toggle(session.status.phase.isRunning ? strings.stopConnection : strings.startConnection, isOn: Binding(
                 get: { session.status.phase.isRunning },
                 set: { $0 ? session.start() : session.stop() }
             ))
@@ -68,6 +75,7 @@ struct TunnelDetailView: View {
 
 private struct OverviewView: View {
     let session: TunnelSession
+    @Environment(\.strings) private var strings
 
     var body: some View {
         ScrollView {
@@ -85,9 +93,9 @@ private struct OverviewView: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Grid(alignment: .leading, horizontalSpacing: 32, verticalSpacing: 8) {
                 GridRow {
-                    stat("已連線", connectedFor(now: context.date))
-                    stat("累計重連", "\(session.status.reconnectCount) 次")
-                    stat("最後斷線", lastDisconnect, detail: lastDisconnectReason)
+                    stat(strings.uptime, connectedFor(now: context.date))
+                    stat(strings.reconnects, String(session.status.reconnectCount))
+                    stat(strings.lastDisconnect, lastDisconnect, detail: session.status.lastDisconnect.map { strings.failure($0.reason) })
                 }
             }
         }
@@ -104,28 +112,23 @@ private struct OverviewView: View {
     }
 
     private func connectedFor(now: Date) -> String {
-        if case .connected(let since) = session.status.phase { return StatusText.duration(now.timeIntervalSince(since)) }
+        if case .connected(let since) = session.status.phase { return strings.duration(now.timeIntervalSince(since)) }
         return "—"
     }
 
     private var lastDisconnect: String {
-        guard let disconnect = session.status.lastDisconnect else { return "—" }
-        return disconnect.at.formatted(date: .omitted, time: .shortened)
-    }
-
-    private var lastDisconnectReason: String? {
-        session.status.lastDisconnect?.reason.message
+        session.status.lastDisconnect?.at.formatted(date: .omitted, time: .shortened) ?? "—"
     }
 
     private var forwards: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("轉發").font(.headline)
+            Text(strings.forwards).font(.headline)
             Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 10) {
                 GridRow {
-                    Text("本機")
-                    Text("遠端")
-                    Text("狀態")
-                    Text("使用中連線")
+                    Text(strings.local)
+                    Text(strings.remote)
+                    Text(strings.state)
+                    Text(strings.clients)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -133,9 +136,9 @@ private struct OverviewView: View {
                 ForEach(session.tunnel.forwards) { forward in
                     let listening = session.sockets.listeningPorts.contains(forward.localPort)
                     GridRow {
-                        Text("127.0.0.1:\(String(forward.localPort))").monospacedDigit().textSelection(.enabled)
-                        Text("\(forward.remoteHost):\(String(forward.remotePort))").textSelection(.enabled)
-                        Label(listening ? "監聽中" : "未監聽", systemImage: listening ? "checkmark.circle.fill" : "circle")
+                        Text(verbatim: "127.0.0.1:\(forward.localPort)").monospacedDigit().textSelection(.enabled)
+                        Text(verbatim: "\(forward.remoteHost):\(forward.remotePort)").textSelection(.enabled)
+                        Label(listening ? strings.listening : strings.notListening, systemImage: listening ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(listening ? Color.green : Color.secondary)
                         Text(String(session.sockets.clientCounts[forward.localPort] ?? 0)).monospacedDigit()
                     }
@@ -148,9 +151,9 @@ private struct OverviewView: View {
         let preview = SSHCommand.preview(for: session.tunnel, homeDirectory: NSHomeDirectory())
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("等效指令").font(.headline)
+                Text(strings.equivalentCommand).font(.headline)
                 Spacer()
-                Button("拷貝", systemImage: "doc.on.doc") {
+                Button(strings.copy, systemImage: "doc.on.doc") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(preview, forType: .string)
                 }
