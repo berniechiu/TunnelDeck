@@ -12,6 +12,16 @@ Keep a list of tunnels, such as a bastion host forwarding local ports to databas
 
 </div>
 
+## Screenshots
+
+The menu, with example tunnels: two are connected, and a `ruby` process, such as a Rails console, is using the production database forward.
+
+<img src="docs/images/menu.png" width="426" alt="TunnelDeck menu listing three example tunnels with their ports, remote targets, connected programs and on/off switches">
+
+Settings, showing one tunnel's uptime, forwards, connected programs and the equivalent ssh command:
+
+![TunnelDeck Settings window with the Overview tab of an example tunnel](docs/images/settings.png)
+
 ## Who is this for?
 
 People who reach private databases or services through an SSH bastion and are tired of starting `ssh -L` by hand, or of keeping an unmaintained tunnel manager around. TunnelDeck runs `/usr/bin/ssh` for every tunnel, so your `~/.ssh/config`, `known_hosts`, ssh-agent and Keychain keep working exactly as they do in Terminal.
