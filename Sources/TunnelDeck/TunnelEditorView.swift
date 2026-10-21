@@ -170,7 +170,6 @@ struct TunnelEditorView: View {
         panel.showsHiddenFiles = true
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let home = NSHomeDirectory()
-        identityFile = url.path.hasPrefix(home + "/") ? "~" + url.path.dropFirst(home.count) : url.path
+        identityFile = (url.path as NSString).abbreviatingWithTildeInPath
     }
 }

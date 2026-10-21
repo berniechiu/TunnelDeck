@@ -5,6 +5,9 @@ public struct SocketSnapshot: Equatable, Sendable {
     public var listeningPorts: Set<Int> = []
     public var clientCounts: [Int: Int] = [:]
 
+    public func isListening(on port: Int) -> Bool { listeningPorts.contains(port) }
+    public func clients(on port: Int) -> Int { clientCounts[port] ?? 0 }
+
     public init(listeningPorts: Set<Int> = [], clientCounts: [Int: Int] = [:]) {
         self.listeningPorts = listeningPorts
         self.clientCounts = clientCounts
@@ -88,6 +91,6 @@ public enum SocketInspector {
     private static func processName(_ pid: pid_t) -> String? {
         var buffer = [CChar](repeating: 0, count: Int(MAXCOMLEN) * 2 + 1)
         guard proc_name(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
-        return String(cString: buffer)
+        return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 }

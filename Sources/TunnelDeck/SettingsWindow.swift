@@ -14,7 +14,7 @@ struct SettingsWindow: View {
                 ContentUnavailableView(
                     strings.cannotStart,
                     systemImage: "exclamationmark.triangle",
-                    description: Text(strings.loadError(ConfigStore.defaultURL.path, model.loadError ?? ""))
+                    description: Text(model.loadErrorText(strings))
                 )
             }
         }

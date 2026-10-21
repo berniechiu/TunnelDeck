@@ -61,10 +61,6 @@ public final class TunnelSession: Identifiable {
             startWhenExited = true
             return
         }
-        if let busy = tunnel.forwards.first(where: { !SocketInspector.isPortFree($0.localPort) }) {
-            status.phase = .failed(.portInUse(busy.localPort, SocketInspector.occupant(ofLocalPort: busy.localPort)))
-            return
-        }
         send(.start)
     }
 
@@ -97,6 +93,11 @@ public final class TunnelSession: Identifiable {
     }
 
     private func launch() {
+        // Fail before starting ssh, so the failure can name the occupant instead of ssh's bare bind error.
+        if let busy = tunnel.forwards.first(where: { !SocketInspector.isPortFree($0.localPort) }) {
+            send(.processExited(withOccupant(.portInUse(busy.localPort, nil))))
+            return
+        }
         let process = Process()
         process.executableURL = URL(filePath: executable)
         process.arguments = SSHCommand.arguments(for: tunnel, homeDirectory: homeDirectory)
@@ -145,15 +146,16 @@ public final class TunnelSession: Identifiable {
         pid = nil
         pollTask?.cancel()
         sockets = SocketSnapshot()
-        var failure = SSHFailureClassifier.classify(stderr: runStderr.joined(separator: "\n"))
-        if case .portInUse(let port, nil) = failure {
-            failure = .portInUse(port, SocketInspector.occupant(ofLocalPort: port))
-        }
-        send(.processExited(failure))
+        send(.processExited(withOccupant(SSHFailureClassifier.classify(stderr: runStderr.joined(separator: "\n")))))
         if startWhenExited {
             startWhenExited = false
             start()
         }
+    }
+
+    private func withOccupant(_ failure: TunnelFailure) -> TunnelFailure {
+        guard case .portInUse(let port, nil) = failure else { return failure }
+        return .portInUse(port, SocketInspector.occupant(ofLocalPort: port))
     }
 
     private func terminate() {
@@ -180,12 +182,15 @@ public final class TunnelSession: Identifiable {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, run == self.runID, let pid = self.pid else { return }
-                self.sockets = SocketInspector.snapshot(pid: pid)
+                let snapshot = SocketInspector.snapshot(pid: pid)
+                // Assigning an equal value would still invalidate every view that reads `sockets`.
+                if snapshot != self.sockets { self.sockets = snapshot }
                 if case .connecting = self.status.phase,
-                   Set(self.tunnel.forwards.map(\.localPort)).isSubset(of: self.sockets.listeningPorts) {
+                   self.tunnel.forwards.allSatisfy({ snapshot.isListening(on: $0.localPort) }) {
                     self.send(.forwardsListening)
                 }
-                try? await Task.sleep(for: .seconds(1))
+                // Connecting needs a quick answer; once connected this only refreshes client counts.
+                try? await Task.sleep(for: .seconds(self.status.phase.isConnected ? 3 : 1))
             }
         }
     }

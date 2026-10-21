@@ -10,16 +10,12 @@ extension TunnelPhase {
         case .failed: .red
         }
     }
+}
 
-    var isFailed: Bool {
-        if case .failed = self { true } else { false }
-    }
-
-    var isTransient: Bool {
-        switch self {
-        case .connecting, .reconnecting: true
-        default: false
-        }
+extension TunnelSession {
+    /// The on/off switch for this tunnel.
+    var runningBinding: Binding<Bool> {
+        Binding(get: { self.status.phase.isRunning }, set: { $0 ? self.start() : self.stop() })
     }
 }
 
@@ -47,6 +43,19 @@ extension Strings {
             return failure(reason)
         default:
             return label(for: status.phase)
+        }
+    }
+}
+
+/// The live status line: elapsed time and countdowns tick every second, and failures are red.
+struct StatusLine: View {
+    let status: TunnelStatus
+    @Environment(\.strings) private var strings
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Text(strings.line(for: status, now: context.date))
+                .foregroundStyle(status.phase.isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
         }
     }
 }

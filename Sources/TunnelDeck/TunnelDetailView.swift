@@ -54,17 +54,10 @@ struct TunnelDetailView: View {
             StatusDot(phase: session.status.phase)
             VStack(alignment: .leading, spacing: 3) {
                 Text(session.tunnel.name).font(.title2.weight(.semibold))
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(strings.line(for: session.status, now: context.date))
-                        .foregroundStyle(session.status.phase.isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
-                        .textSelection(.enabled)
-                }
+                StatusLine(status: session.status).textSelection(.enabled)
             }
             Spacer()
-            Toggle(session.status.phase.isRunning ? strings.stopConnection : strings.startConnection, isOn: Binding(
-                get: { session.status.phase.isRunning },
-                set: { $0 ? session.start() : session.stop() }
-            ))
+            Toggle(session.status.phase.isRunning ? strings.stopConnection : strings.startConnection, isOn: session.runningBinding)
             .toggleStyle(.switch)
             .labelsHidden()
         }
@@ -134,13 +127,13 @@ private struct OverviewView: View {
                 .foregroundStyle(.secondary)
                 Divider().gridCellUnsizedAxes(.horizontal)
                 ForEach(session.tunnel.forwards) { forward in
-                    let listening = session.sockets.listeningPorts.contains(forward.localPort)
+                    let listening = session.sockets.isListening(on: forward.localPort)
                     GridRow {
                         Text(verbatim: "127.0.0.1:\(forward.localPort)").monospacedDigit().textSelection(.enabled)
                         Text(verbatim: "\(forward.remoteHost):\(forward.remotePort)").textSelection(.enabled)
                         Label(listening ? strings.listening : strings.notListening, systemImage: listening ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(listening ? Color.green : Color.secondary)
-                        Text(String(session.sockets.clientCounts[forward.localPort] ?? 0)).monospacedDigit()
+                        Text(String(session.sockets.clients(on: forward.localPort))).monospacedDigit()
                     }
                 }
             }

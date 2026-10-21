@@ -13,6 +13,21 @@ public enum TunnelPhase: Equatable, Sendable {
         case .stopped, .failed: false
         }
     }
+
+    public var isTransient: Bool {
+        switch self {
+        case .connecting, .reconnecting: true
+        default: false
+        }
+    }
+
+    public var isConnected: Bool {
+        if case .connected = self { true } else { false }
+    }
+
+    public var isFailed: Bool {
+        if case .failed = self { true } else { false }
+    }
 }
 
 public struct Disconnect: Equatable, Sendable {

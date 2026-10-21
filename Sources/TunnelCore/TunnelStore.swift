@@ -76,14 +76,9 @@ public final class TunnelStore {
     /// The most urgent state across all tunnels: failed, then connecting or reconnecting, then connected.
     public var aggregate: AggregateState {
         let phases = sessions.map(\.status.phase)
-        if phases.contains(where: { if case .failed = $0 { true } else { false } }) { return .failed }
-        if phases.contains(where: {
-            switch $0 {
-            case .connecting, .reconnecting: true
-            default: false
-            }
-        }) { return .connecting }
-        return phases.contains(where: \.isRunning) ? .connected : .idle
+        if phases.contains(where: \.isFailed) { return .failed }
+        if phases.contains(where: \.isTransient) { return .connecting }
+        return phases.contains(where: \.isConnected) ? .connected : .idle
     }
 
     public func stopAll() {

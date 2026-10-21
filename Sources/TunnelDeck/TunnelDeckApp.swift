@@ -34,11 +34,11 @@ enum SettingsSelection: Hashable {
 
 @MainActor @Observable
 final class AppModel {
-    @ObservationIgnored let store: TunnelStore?
+    let store: TunnelStore?
     /// Why the settings file could not be read; the store is nil in that case.
-    @ObservationIgnored let loadError: String?
+    let loadError: String?
     var selection: SettingsSelection?
-    @ObservationIgnored private let notifier = Notifier()
+    private let notifier = Notifier()
     @ObservationIgnored private var events: SystemEvents?
 
     init() {
@@ -55,6 +55,10 @@ final class AppModel {
             loadError = error.localizedDescription
         }
         notifier.requestAuthorization()
+    }
+
+    func loadErrorText(_ strings: Strings) -> String {
+        strings.loadError(ConfigStore.defaultURL.path, loadError ?? "")
     }
 }
 

@@ -28,7 +28,7 @@ struct MenuBarView: View {
                 Divider()
                 footer(store)
             } else {
-                Label(strings.loadError(ConfigStore.defaultURL.path, model.loadError ?? ""), systemImage: "exclamationmark.triangle.fill")
+                Label(model.loadErrorText(strings), systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
                     .padding()
                 Divider()
@@ -75,12 +75,13 @@ struct MenuBarView: View {
 
     private func summary(_ store: TunnelStore) -> String {
         let phases = store.sessions.map(\.status.phase)
-        let failed = phases.filter(\.isFailed).count
-        let connecting = phases.filter(\.isTransient).count
-        let connected = phases.filter { if case .connected = $0 { true } else { false } }.count
-        if failed > 0 { return strings.summaryFailed(failed) }
-        if connecting > 0 { return strings.summaryConnecting(connecting) }
-        return connected > 0 ? strings.summaryConnected(connected) : strings.summaryStopped
+        func count(_ matches: (TunnelPhase) -> Bool) -> Int { phases.filter(matches).count }
+        return switch store.aggregate {
+        case .failed: strings.summaryFailed(count(\.isFailed))
+        case .connecting: strings.summaryConnecting(count(\.isTransient))
+        case .connected: strings.summaryConnected(count(\.isConnected))
+        case .idle: strings.summaryStopped
+        }
     }
 
     private func openSettings(_ selection: SettingsSelection?) {
@@ -106,8 +107,8 @@ private struct TunnelRow: View {
                     HStack(spacing: 6) {
                         PortChip(
                             port: forward.localPort,
-                            listening: session.sockets.listeningPorts.contains(forward.localPort),
-                            clients: session.sockets.clientCounts[forward.localPort] ?? 0
+                            listening: session.sockets.isListening(on: forward.localPort),
+                            clients: session.sockets.clients(on: forward.localPort)
                         )
                         Image(systemName: "arrow.right").font(.caption2).foregroundStyle(.tertiary)
                         Text(verbatim: "\(forward.remoteHost):\(forward.remotePort)")
@@ -117,15 +118,19 @@ private struct TunnelRow: View {
                             .truncationMode(.middle)
                     }
                 }
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    statusLine(now: context.date)
+                VStack(alignment: .leading, spacing: 2) {
+                    StatusLine(status: session.status)
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if session.status.reconnectCount > 0, session.status.phase.isRunning {
+                        Label(strings.reconnectCount(session.status.reconnectCount), systemImage: "arrow.clockwise")
+                            .foregroundStyle(.tertiary)
+                    }
                 }
+                .font(.caption)
             }
             Spacer(minLength: 8)
-            Toggle(session.tunnel.name, isOn: Binding(
-                get: { session.status.phase.isRunning },
-                set: { $0 ? session.start() : session.stop() }
-            ))
+            Toggle(session.tunnel.name, isOn: session.runningBinding)
             .toggleStyle(.switch)
             .labelsHidden()
             .controlSize(.small)
@@ -143,20 +148,5 @@ private struct TunnelRow: View {
         let user = tunnel.user.map { $0.isEmpty ? "" : "\($0)@" } ?? ""
         let port = tunnel.port.map { $0 == 22 ? "" : ":\($0)" } ?? ""
         return user + tunnel.host + port
-    }
-
-    @ViewBuilder
-    private func statusLine(now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(strings.line(for: session.status, now: now))
-                .foregroundStyle(session.status.phase.isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
-                .lineLimit(4)
-                .fixedSize(horizontal: false, vertical: true)
-            if session.status.reconnectCount > 0, session.status.phase.isRunning {
-                Label(strings.reconnectCount(session.status.reconnectCount), systemImage: "arrow.clockwise")
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .font(.caption)
     }
 }
