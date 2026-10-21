@@ -103,3 +103,26 @@ extension sockaddr_in {
     listener.connectClient()
     #expect(SocketInspector.clientProcesses(connectedTo: [listener.port], excluding: getpid())[listener.port] == nil)
 }
+
+/// Java clients such as DataGrip and DBeaver, among others, connect through a dual-stack IPv6 socket, so the
+/// peer shows up as the IPv4-mapped address ::ffff:127.0.0.1.
+@Test func dualStackClientsAreFound() throws {
+    let listener = try TestListener()
+    defer { listener.close() }
+    let client = socket(AF_INET6, SOCK_STREAM, 0)
+    defer { close(client) }
+    var off: Int32 = 0
+    setsockopt(client, IPPROTO_IPV6, IPV6_V6ONLY, &off, socklen_t(MemoryLayout<Int32>.size))
+    var addr = sockaddr_in6()
+    addr.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+    addr.sin6_family = sa_family_t(AF_INET6)
+    addr.sin6_port = UInt16(listener.port).bigEndian
+    inet_pton(AF_INET6, "::ffff:127.0.0.1", &addr.sin6_addr)
+    let rc = withUnsafePointer(to: &addr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(client, $0, socklen_t(MemoryLayout<sockaddr_in6>.size)) }
+    }
+    try #require(rc == 0)
+
+    let clients = SocketInspector.clientProcesses(connectedTo: [listener.port], excluding: -1)
+    #expect(clients[listener.port]?.contains { $0.pid == getpid() } == true)
+}
