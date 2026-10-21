@@ -5,6 +5,7 @@ struct MenuBarView: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
     @Environment(\.strings) private var strings
+    @State private var listHeight: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -21,9 +22,12 @@ struct MenuBarView: View {
                             }
                         }
                         .padding(6)
+                        .onGeometryChange(for: CGFloat.self, of: \.size.height) { listHeight = $0 }
                     }
                     .scrollBounceBehavior(.basedOnSize)
-                    .frame(maxHeight: 460)
+                    // The menu bar window sizes itself to the content's minimum, which for a ScrollView is
+                    // nothing, so give it the list's own height up to a cap.
+                    .frame(height: min(listHeight, 460))
                 }
                 Divider()
                 footer(store)
