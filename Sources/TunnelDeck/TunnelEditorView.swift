@@ -21,6 +21,11 @@ struct TunnelEditorView: View {
             remoteHost = forward.remoteHost
             remotePort = String(forward.remotePort)
         }
+
+        /// What gets saved: trimmed, and 0 for text that isn't a number, which validation rejects.
+        var value: Forward {
+            Forward(id: id, localPort: Int(trimmed(localPort)) ?? 0, remoteHost: trimmed(remoteHost), remotePort: Int(trimmed(remotePort)) ?? 0)
+        }
     }
 
     let store: TunnelStore
@@ -125,8 +130,10 @@ struct TunnelEditorView: View {
     }
 
     private func forwardIssue(_ forward: ForwardDraft) -> String? {
-        let candidates: [ValidationIssue] = [.invalidLocalPort(forward.id), .invalidRemoteHost(forward.id), .invalidRemotePort(forward.id)]
-            + (Int(forward.localPort).map { [.duplicateLocalPort($0)] } ?? [])
+        let candidates: [ValidationIssue] = [
+            .invalidLocalPort(forward.id), .invalidRemoteHost(forward.id), .invalidRemotePort(forward.id),
+            .duplicateLocalPort(forward.value.localPort),
+        ]
         return candidates.first(where: issues.contains).map(strings.validation)
     }
 
@@ -140,7 +147,6 @@ struct TunnelEditorView: View {
     }
 
     private func save() {
-        let trimmed = { (value: String) in value.trimmingCharacters(in: .whitespaces) }
         let tunnel = Tunnel(
             id: original.id,
             name: trimmed(name),
@@ -148,14 +154,7 @@ struct TunnelEditorView: View {
             user: trimmed(user).nonEmpty,
             port: trimmed(port).nonEmpty.map { Int($0) ?? 0 },
             identityFile: identityFile.nonEmpty,
-            forwards: forwards.map {
-                Forward(
-                    id: $0.id,
-                    localPort: Int(trimmed($0.localPort)) ?? 0,
-                    remoteHost: trimmed($0.remoteHost),
-                    remotePort: Int(trimmed($0.remotePort)) ?? 0
-                )
-            }
+            forwards: forwards.map(\.value)
         )
         do {
             try store.upsert(tunnel)
@@ -177,4 +176,8 @@ struct TunnelEditorView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         identityFile = (url.path as NSString).abbreviatingWithTildeInPath
     }
+}
+
+private func trimmed(_ text: String) -> String {
+    text.trimmingCharacters(in: .whitespaces)
 }
