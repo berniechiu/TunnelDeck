@@ -45,11 +45,7 @@ public enum SocketInspector {
         // ssh sets SO_REUSEADDR on its listeners, so a port left in TIME_WAIT is still usable for it.
         var reuse: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = UInt16(port).bigEndian
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        var addr = sockaddr_in.loopback(port: port)
         return withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
         } == 0
@@ -105,7 +101,7 @@ public enum SocketInspector {
             let ini = tcp.tcpsi_ini
             func port(_ raw: Int32) -> Int { Int(UInt16(bigEndian: UInt16(truncatingIfNeeded: raw))) }
             let remoteIsLoopback = ini.insi_vflag & UInt8(INI_IPV4) != 0
-                && ini.insi_faddr.ina_46.i46a_addr4.s_addr == inet_addr("127.0.0.1")
+                && ini.insi_faddr.ina_46.i46a_addr4.s_addr == loopbackAddress
             return TCPSocket(localPort: port(ini.insi_lport), remotePort: port(ini.insi_fport), remoteIsLoopback: remoteIsLoopback, state: tcp.tcpsi_state)
         }
     }
@@ -122,5 +118,18 @@ public enum SocketInspector {
         var buffer = [CChar](repeating: 0, count: Int(MAXCOMLEN) * 2 + 1)
         guard proc_name(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
         return String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+    }
+}
+
+private let loopbackAddress = inet_addr("127.0.0.1")
+
+extension sockaddr_in {
+    static func loopback(port: Int) -> sockaddr_in {
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = UInt16(port).bigEndian
+        addr.sin_addr.s_addr = loopbackAddress
+        return addr
     }
 }

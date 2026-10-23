@@ -128,6 +128,31 @@ public struct Strings: Sendable {
         }
     }
 
+    public func label(for phase: TunnelPhase) -> String {
+        switch phase {
+        case .stopped: stopped
+        case .connecting(0): connecting
+        case .connecting(let attempt): reconnectingAttempt(attempt)
+        case .connected: connected
+        case .reconnecting: waitingToReconnect
+        case .failed: failed
+        }
+    }
+
+    /// The one-line status, including live elapsed and countdown values relative to `now`.
+    public func line(for status: TunnelStatus, now: Date) -> String {
+        switch status.phase {
+        case .connected(let since):
+            connectedFor(duration(now.timeIntervalSince(since)))
+        case .reconnecting(let attempt, let retryAt, let reason):
+            "\(failure(reason)) \(retryIn(max(0, Int(retryAt.timeIntervalSince(now).rounded(.up))), attempt))"
+        case .failed(let reason):
+            failure(reason)
+        default:
+            label(for: status.phase)
+        }
+    }
+
     static let english = Strings(
         settings: "Settings",
         stopAll: "Stop All",

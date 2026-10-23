@@ -64,11 +64,11 @@ public func validate(_ tunnel: Tunnel, against others: [Tunnel]) -> [ValidationI
 
     if tunnel.name.trimmingCharacters(in: .whitespaces).isEmpty { issues.append(.emptyName) }
     if !isValidHost(tunnel.host) { issues.append(.invalidHost) }
-    if let user = tunnel.user.nonEmpty, user.wholeMatch(of: /[A-Za-z0-9_][A-Za-z0-9._-]*/) == nil {
+    if let user = tunnel.user?.nonEmpty, user.wholeMatch(of: /[A-Za-z0-9_][A-Za-z0-9._-]*/) == nil {
         issues.append(.invalidUser)
     }
     if let port = tunnel.port, !isValidPort(port) { issues.append(.invalidSSHPort) }
-    if let path = tunnel.identityFile.nonEmpty, !(path.hasPrefix("/") || path.hasPrefix("~/")) {
+    if let path = tunnel.identityFile?.nonEmpty, !(path.hasPrefix("/") || path.hasPrefix("~/")) {
         issues.append(.invalidIdentityFile)
     }
     if tunnel.forwards.isEmpty { issues.append(.noForwards) }
@@ -108,9 +108,7 @@ private func isValidHost(_ host: String) -> Bool {
     }
 }
 
-extension Optional where Wrapped == String {
-    var nonEmpty: String? {
-        guard let value = self, !value.isEmpty else { return nil }
-        return value
-    }
+extension String {
+    /// nil for an empty string, since an empty optional field means the same as a missing one.
+    public var nonEmpty: String? { isEmpty ? nil : self }
 }

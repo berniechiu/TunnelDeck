@@ -60,9 +60,10 @@ func classifiesOnlyWhatEndedTheRun(stderr: String, expected: TunnelFailure) {
     #expect(SSHFailureClassifier.classify(stderr: stderr) == expected)
 }
 
-@Test func nonRetryableFailures() {
-    let nonRetryable: [TunnelFailure] = [.hostKeyChanged, .hostKeyUnknown, .authenticationFailed, .portInUse(1, nil), .configError("x")]
-    #expect(nonRetryable.allSatisfy { !$0.isRetryable })
-    let retryable: [TunnelFailure] = [.hostNotFound, .connectionRefused, .timedOut, .networkUnreachable, .connectionLost, .unknown("x")]
-    #expect(retryable.allSatisfy { $0.isRetryable })
+let nonRetryableFailures: [TunnelFailure] = [.hostKeyChanged, .hostKeyUnknown, .authenticationFailed, .portInUse(3308, nil), .configError("x")]
+let retryableFailures: [TunnelFailure] = [.hostNotFound, .connectionRefused, .timedOut, .networkUnreachable, .connectionLost, .unknown("x")]
+
+@Test func retryability() {
+    #expect(nonRetryableFailures.allSatisfy { !$0.isRetryable })
+    #expect(retryableFailures.allSatisfy { $0.isRetryable })
 }

@@ -55,7 +55,7 @@ private struct SettingsContent: View {
                 ToolbarItem {
                     Button(strings.addTunnel, systemImage: "plus") {
                         model.selection = nil
-                        draft = Tunnel(name: "", host: "", forwards: [Forward(localPort: 0, remoteHost: "", remotePort: 3306)])
+                        draft = Tunnel(name: "", host: "", forwards: [.blank])
                     }
                 }
             }

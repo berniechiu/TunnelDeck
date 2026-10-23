@@ -2,6 +2,11 @@ import AppKit
 import SwiftUI
 import TunnelCore
 
+extension Forward {
+    /// A new forward in the editor; local port 0 shows as an empty field.
+    static var blank: Forward { Forward(localPort: 0, remoteHost: "", remotePort: 3306) }
+}
+
 /// Edits a tunnel as text fields and converts to `Tunnel` on save, so half-typed numbers never reach the store.
 struct TunnelEditorView: View {
     private struct ForwardDraft: Identifiable {
@@ -9,6 +14,13 @@ struct TunnelEditorView: View {
         var localPort: String
         var remoteHost: String
         var remotePort: String
+
+        init(_ forward: Forward) {
+            id = forward.id
+            localPort = forward.localPort == 0 ? "" : String(forward.localPort)
+            remoteHost = forward.remoteHost
+            remotePort = String(forward.remotePort)
+        }
     }
 
     let store: TunnelStore
@@ -74,7 +86,7 @@ struct TunnelEditorView: View {
                     }
                 }
                 Button(strings.addForward, systemImage: "plus") {
-                    forwards.append(ForwardDraft(id: UUID(), localPort: "", remoteHost: "", remotePort: "3306"))
+                    forwards.append(ForwardDraft(.blank))
                 }
                 .buttonStyle(.borderless)
                 issueText(.noForwards)
@@ -124,14 +136,7 @@ struct TunnelEditorView: View {
         user = original.user ?? ""
         port = original.port.map(String.init) ?? ""
         identityFile = original.identityFile ?? ""
-        forwards = original.forwards.map {
-            ForwardDraft(
-                id: $0.id,
-                localPort: $0.localPort == 0 ? "" : String($0.localPort),
-                remoteHost: $0.remoteHost,
-                remotePort: String($0.remotePort)
-            )
-        }
+        forwards = original.forwards.map(ForwardDraft.init)
     }
 
     private func save() {
@@ -140,9 +145,9 @@ struct TunnelEditorView: View {
             id: original.id,
             name: trimmed(name),
             host: trimmed(host),
-            user: trimmed(user).isEmpty ? nil : trimmed(user),
-            port: trimmed(port).isEmpty ? nil : Int(trimmed(port)) ?? 0,
-            identityFile: identityFile.isEmpty ? nil : identityFile,
+            user: trimmed(user).nonEmpty,
+            port: trimmed(port).nonEmpty.map { Int($0) ?? 0 },
+            identityFile: identityFile.nonEmpty,
             forwards: forwards.map {
                 Forward(
                     id: $0.id,

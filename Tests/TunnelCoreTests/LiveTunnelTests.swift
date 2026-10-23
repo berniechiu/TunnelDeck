@@ -21,11 +21,6 @@ struct LiveTunnelTests {
         )
     }
 
-    private func connected(_ session: TunnelSession) -> Bool {
-        if case .connected = session.status.phase { return true }
-        return false
-    }
-
     @Test func connectsCountsClientsReconnectsAndStops() async throws {
         let tunnel = try liveTunnel()
         let port = tunnel.forwards[0].localPort
@@ -33,22 +28,17 @@ struct LiveTunnelTests {
         defer { session.stop() }
 
         session.start()
-        #expect(await eventually(timeout: .seconds(30)) { connected(session) }, "log: \(session.log.map(\.text))")
+        #expect(await eventually(timeout: .seconds(30)) { session.status.phase.isConnected }, "log: \(session.log.map(\.text))")
         #expect(session.sockets.listeningPorts.contains(port))
 
-        let client = socket(AF_INET, SOCK_STREAM, 0)
-        var addr = sockaddr_in.loopback(port: port)
-        let rc = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(client, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
-        }
-        #expect(rc == 0)
+        let client = try connectLoopback(port: port)
         #expect(await eventually { session.sockets.clientCounts[port] == 1 })
         #expect(await eventually { session.clients[port]?.contains { $0.pid == getpid() } == true })
         close(client)
 
         let firstPid = try #require(session.pid)
         kill(firstPid, SIGKILL)
-        #expect(await eventually(timeout: .seconds(30)) { session.status.reconnectCount == 1 && connected(session) })
+        #expect(await eventually(timeout: .seconds(30)) { session.status.reconnectCount == 1 && session.status.phase.isConnected })
         #expect(session.status.lastDisconnect?.reason == .connectionLost)
         #expect(session.pid != firstPid)
 

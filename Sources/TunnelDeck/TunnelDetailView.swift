@@ -84,12 +84,10 @@ private struct OverviewView: View {
 
     private var stats: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            Grid(alignment: .leading, horizontalSpacing: 32, verticalSpacing: 8) {
-                GridRow {
-                    stat(strings.uptime, connectedFor(now: context.date))
-                    stat(strings.reconnects, String(session.status.reconnectCount))
-                    stat(strings.lastDisconnect, lastDisconnect, detail: session.status.lastDisconnect.map { strings.failure($0.reason) })
-                }
+            HStack(spacing: 32) {
+                stat(strings.uptime, connectedFor(now: context.date))
+                stat(strings.reconnects, String(session.status.reconnectCount))
+                stat(strings.lastDisconnect, lastDisconnect, detail: session.status.lastDisconnect.map { strings.failure($0.reason) })
             }
         }
     }

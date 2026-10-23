@@ -90,9 +90,9 @@ public final class TunnelStore {
     }
 
     /// Stops everything and blocks until the ssh processes are gone, for use while the app quits.
-    public func shutdown(timeout: TimeInterval = 3) {
+    public func shutdown() {
         stopAll()
-        let deadline = Date().addingTimeInterval(timeout)
+        let deadline = Date().addingTimeInterval(3)
         while sessions.contains(where: \.isProcessRunning), Date() < deadline {
             Thread.sleep(forTimeInterval: 0.05)
         }

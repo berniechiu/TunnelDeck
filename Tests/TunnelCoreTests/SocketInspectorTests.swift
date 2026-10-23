@@ -25,13 +25,8 @@ final class TestListener {
     }
 
     /// Connects a client and accepts it, leaving one established socket on `port` owned by this process.
-    func connectClient() {
-        let client = socket(AF_INET, SOCK_STREAM, 0)
-        var addr = sockaddr_in.loopback(port: port)
-        _ = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(client, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
-        }
-        extra += [client, accept(fd, nil, nil)]
+    func connectClient() throws {
+        extra += [try connectLoopback(port: port), accept(fd, nil, nil)]
     }
 
     func close() {
@@ -47,15 +42,19 @@ final class TestListener {
     }
 }
 
-extension sockaddr_in {
-    static func loopback(port: Int) -> sockaddr_in {
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = UInt16(port).bigEndian
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-        return addr
+/// A client socket connected to `port` on 127.0.0.1.
+func connectLoopback(port: Int) throws -> Int32 {
+    let client = socket(AF_INET, SOCK_STREAM, 0)
+    var addr = sockaddr_in.loopback(port: port)
+    let rc = withUnsafePointer(to: &addr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(client, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
     }
+    guard rc == 0 else {
+        let code = POSIXErrorCode(rawValue: errno) ?? .ECONNREFUSED
+        close(client)
+        throw POSIXError(code)
+    }
+    return client
 }
 
 @Test func snapshotSeesListenerAndClients() throws {
@@ -65,13 +64,13 @@ extension sockaddr_in {
     #expect(SocketInspector.snapshot(pid: getpid()).listeningPorts.contains(listener.port))
     #expect(SocketInspector.snapshot(pid: getpid()).clientCounts[listener.port, default: 0] == 0)
 
-    listener.connectClient()
+    try listener.connectClient()
     #expect(SocketInspector.snapshot(pid: getpid()).clientCounts[listener.port] == 1)
 }
 
 @Test func portInTimeWaitIsFree() throws {
     let listener = try TestListener()
-    listener.connectClient()
+    try listener.connectClient()
     // Closing the accepted (server) side first leaves that side in TIME_WAIT on the listening port.
     listener.closeAcceptedFirst()
     #expect(SocketInspector.isPortFree(listener.port))
@@ -89,7 +88,7 @@ extension sockaddr_in {
 @Test func clientProcessesAreFoundByTheirRemotePort() throws {
     let listener = try TestListener()
     defer { listener.close() }
-    listener.connectClient()
+    try listener.connectClient()
 
     let clients = SocketInspector.clientProcesses(connectedTo: [listener.port], excluding: -1)
     let mine = try #require(clients[listener.port]?.first { $0.pid == getpid() })
@@ -100,7 +99,7 @@ extension sockaddr_in {
 @Test func theExcludedProcessIsNotItsOwnClient() throws {
     let listener = try TestListener()
     defer { listener.close() }
-    listener.connectClient()
+    try listener.connectClient()
     #expect(SocketInspector.clientProcesses(connectedTo: [listener.port], excluding: getpid())[listener.port] == nil)
 }
 

@@ -32,19 +32,24 @@ struct FakeSSH {
         ((try? String(contentsOf: marker, encoding: .utf8)) ?? "").split(separator: "\n").count
     }
 
-    /// Listens like ssh does and accepts clients, holding each connection open.
-    static let listen = #"exec /usr/bin/perl -MIO::Socket::INET -e '$s = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => $ARGV[0], Listen => 5, ReuseAddr => 1) or die; my @c; while (my $c = $s->accept) { push @c, $c }' "$PORT""#
+    /// Listens on `$PORT` like ssh does, then runs the perl `body` with the listening socket in `$s`.
+    static func perlListener(_ body: String) -> String {
+        #"exec /usr/bin/perl -MIO::Socket::INET -e '$s = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => $ARGV[0], Listen => 5, ReuseAddr => 1) or die; "#
+            + body + #"' "$PORT""#
+    }
+
+    /// Listens and accepts clients, holding each connection open.
+    static let listen = perlListener("my @c; while (my $c = $s->accept) { push @c, $c }")
 
     static let authFailure = #"echo 'deploy@bastion: Permission denied (publickey).' >&2; exit 255"#
 
     static let timeout = #"echo 'ssh: connect to host bastion port 22: Operation timed out' >&2; exit 255"#
 
     /// Listens, then drops the connection after 2.5 seconds on the first launch only.
-    static let dropOnce =
-        #"""
-        if [ "$(wc -l < "$MARKER")" -gt 1 ]; then \#(listen); fi
-        exec /usr/bin/perl -MIO::Socket::INET -e '$s = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => $ARGV[0], Listen => 5, ReuseAddr => 1) or die; select(undef, undef, undef, 2.5); print STDERR "Connection to bastion closed by remote host.\n"; exit 255' "$PORT"
-        """#
+    static let dropOnce = """
+        if [ "$(wc -l < "$MARKER")" -gt 1 ]; then \(listen); fi
+        \(perlListener(#"select(undef, undef, undef, 2.5); print STDERR "Connection to bastion closed by remote host.\n"; exit 255"#))
+        """
 }
 
 func freePort() throws -> Int {
@@ -90,10 +95,7 @@ func makeSession(_ fake: FakeSSH, port: Int) -> TunnelSession {
         let port = try freePort()
         let session = makeSession(fake, port: port)
         session.start()
-        #expect(await eventually {
-            if case .connected = session.status.phase { return true }
-            return false
-        })
+        #expect(await eventually { session.status.phase.isConnected })
         #expect(session.sockets.listeningPorts.contains(port))
         let pid = try #require(session.pid)
 
@@ -110,11 +112,7 @@ func makeSession(_ fake: FakeSSH, port: Int) -> TunnelSession {
         session.start()
         #expect(await eventually { session.status.phase.isConnected })
 
-        let client = socket(AF_INET, SOCK_STREAM, 0)
-        var addr = sockaddr_in.loopback(port: port)
-        _ = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(client, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
-        }
+        let client = try connectLoopback(port: port)
         #expect(await eventually { session.clients[port]?.contains { $0.pid == getpid() } == true })
 
         close(client)
@@ -164,10 +162,7 @@ func makeSession(_ fake: FakeSSH, port: Int) -> TunnelSession {
         session.start()
         #expect(await eventually(timeout: .seconds(10)) { fake.launches == 2 && session.status.reconnectCount == 1 })
         #expect(session.status.lastDisconnect?.reason == .connectionLost)
-        #expect(await eventually {
-            if case .connected = session.status.phase { return true }
-            return false
-        })
+        #expect(await eventually { session.status.phase.isConnected })
         session.stop()
     }
 
@@ -195,10 +190,7 @@ func makeSession(_ fake: FakeSSH, port: Int) -> TunnelSession {
         var edited = session.tunnel
         edited.name = "renamed"
         session.update(edited)
-        #expect(await eventually {
-            if case .connected = session.status.phase { return fake.launches == 2 }
-            return false
-        })
+        #expect(await eventually { session.status.phase.isConnected && fake.launches == 2 })
         #expect(session.tunnel.name == "renamed")
         session.stop()
     }

@@ -13,9 +13,9 @@ public enum SSHCommand {
 
     public static func arguments(for tunnel: Tunnel, homeDirectory: String) -> [String] {
         var args = fixedOptions
-        if let user = tunnel.user.nonEmpty { args += ["-l", user] }
+        if let user = tunnel.user?.nonEmpty { args += ["-l", user] }
         if let port = tunnel.port { args += ["-p", String(port)] }
-        if let path = tunnel.identityFile.nonEmpty {
+        if let path = tunnel.identityFile?.nonEmpty {
             let expanded = path.hasPrefix("~/") ? homeDirectory + path.dropFirst() : path
             args += ["-i", expanded, "-o", "IdentitiesOnly=yes"]
         }
