@@ -6,7 +6,7 @@ public enum SSHCommand {
     private static let fixedOptions = [
         "-N", "-T",
         "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
-        "-o", "ControlMaster=no", "-o", "ControlPath=none",
+        "-o", "ControlMaster=no", "-o", "ControlPath=none", "-o", "ForkAfterAuthentication=no",
         "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3",
         "-o", "ConnectTimeout=10", "-o", "LogLevel=VERBOSE",
     ]
