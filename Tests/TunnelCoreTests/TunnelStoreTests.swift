@@ -129,4 +129,19 @@ private func makeStore(_ fake: FakeSSH, tunnels: [Tunnel] = []) throws -> (Tunne
         store.shutdown()
         #expect(!isAlive(pid))
     }
+
+    @Test func shutdownKillsSSHThatIgnoresTerminateIncludingJustDeletedTunnels() async throws {
+        let fake = try FakeSSH(FakeSSH.listenIgnoringTerminate)
+        let tunnels = [forwardTunnel(localPort: try freePort()), forwardTunnel(localPort: try freePort())]
+        let (store, _) = try makeStore(fake, tunnels: tunnels)
+        tunnels.forEach { store.session(for: $0.id)!.start() }
+        #expect(await eventually { tunnels.allSatisfy { store.session(for: $0.id)!.status.phase.isConnected } })
+        let pids = tunnels.compactMap { store.session(for: $0.id)!.pid }
+        defer { pids.forEach { kill($0, SIGKILL) } }
+        try #require(pids.count == 2)
+
+        try store.delete(tunnels[0].id)
+        store.shutdown()
+        #expect(pids.allSatisfy { !isAlive($0) })
+    }
 }

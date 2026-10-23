@@ -46,11 +46,9 @@ public final class TunnelSession: Identifiable {
 
     var isProcessRunning: Bool { process?.isRunning == true }
 
-    func killImmediately() {
+    func forceKill() {
         guard let process, process.isRunning else { return }
         kill(process.processIdentifier, SIGKILL)
-        let deadline = Date().addingTimeInterval(0.5)
-        while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
     }
 
     public func start() {

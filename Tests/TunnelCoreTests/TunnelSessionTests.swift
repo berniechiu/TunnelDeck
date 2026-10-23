@@ -41,6 +41,9 @@ struct FakeSSH {
     /// Listens and accepts clients, holding each connection open.
     static let listen = perlListener("my @c; while (my $c = $s->accept) { push @c, $c }")
 
+    /// Like `listen`, but ignores SIGTERM, so only SIGKILL ends it. An ignored signal stays ignored across exec.
+    static let listenIgnoringTerminate = "trap '' TERM; " + listen
+
     static let authFailure = #"echo 'deploy@bastion: Permission denied (publickey).' >&2; exit 255"#
 
     static let timeout = #"echo 'ssh: connect to host bastion port 22: Operation timed out' >&2; exit 255"#

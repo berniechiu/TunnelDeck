@@ -13,6 +13,8 @@ public final class TunnelStore {
     private let executable: String
     private let notify: @MainActor (Tunnel, TunnelFailure) -> Void
     @ObservationIgnored private var sessionsByID: [Tunnel.ID: TunnelSession] = [:]
+    /// Deleted sessions whose ssh may not have exited yet, so `shutdown()` still waits for and kills it.
+    @ObservationIgnored private var deletedSessions: [TunnelSession] = []
 
     public init(
         config: ConfigStore,
@@ -61,7 +63,10 @@ public final class TunnelStore {
         let remaining = tunnels.filter { $0.id != id }
         try config.save(remaining)
         tunnels = remaining
-        sessionsByID.removeValue(forKey: id)?.stop()
+        guard let session = sessionsByID.removeValue(forKey: id) else { return }
+        session.stop()
+        deletedSessions.removeAll { !$0.isProcessRunning }
+        if session.isProcessRunning { deletedSessions.append(session) }
     }
 
     /// An unsaved copy for the editor; its ports still clash with the original until edited.
@@ -92,10 +97,14 @@ public final class TunnelStore {
     /// Stops everything and blocks until the ssh processes are gone, for use while the app quits.
     public func shutdown() {
         stopAll()
-        let deadline = Date().addingTimeInterval(3)
-        while sessions.contains(where: \.isProcessRunning), Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        sessions.forEach { $0.killImmediately() }
+        let owned = sessions + deletedSessions
+        Self.wait(seconds: 3) { !owned.contains(where: \.isProcessRunning) }
+        owned.forEach { $0.forceKill() }
+        Self.wait(seconds: 0.5) { !owned.contains(where: \.isProcessRunning) }
+    }
+
+    private static func wait(seconds: TimeInterval, until done: () -> Bool) {
+        let deadline = Date().addingTimeInterval(seconds)
+        while !done(), Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
     }
 }
