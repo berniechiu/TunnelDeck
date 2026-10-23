@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Update the Homebrew cask in ff2248/homebrew-tunneldeck. Used by release.yml after the DMG upload.
+# Update the Homebrew cask in berniechiu/homebrew-tunneldeck. Used by release.yml after the DMG upload.
 #
 # Usage: scripts/update_homebrew_cask.sh <version> <sha256>
 #   version  semver without the "v" prefix (e.g. 1.0.0)
@@ -13,7 +13,7 @@ SHA256="${2:?Usage: scripts/update_homebrew_cask.sh <version> <sha256>}"
 command -v brew >/dev/null || { echo "Error: brew not found"; exit 1; }
 command -v git >/dev/null || { echo "Error: git not found"; exit 1; }
 
-REPO="${TAP_REPO:-git@github.com:ff2248/homebrew-tunneldeck.git}"
+REPO="${TAP_REPO:-git@github.com:berniechiu/homebrew-tunneldeck.git}"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
@@ -26,10 +26,10 @@ cask "tunneldeck" do
   version "${VERSION}"
   sha256 "${SHA256}"
 
-  url "https://github.com/ff2248/TunnelDeck/releases/download/v#{version}/TunnelDeck-v#{version}.dmg"
+  url "https://github.com/berniechiu/TunnelDeck/releases/download/v#{version}/TunnelDeck-v#{version}.dmg"
   name "TunnelDeck"
   desc "Menu bar manager for SSH local port forwards"
-  homepage "https://github.com/ff2248/TunnelDeck"
+  homepage "https://github.com/berniechiu/TunnelDeck"
 
   livecheck do
     url :url
@@ -40,11 +40,11 @@ cask "tunneldeck" do
 
   app "TunnelDeck.app"
 
-  uninstall quit: "io.github.ff2248.tunneldeck"
+  uninstall quit: "io.github.berniechiu.tunneldeck"
 
   zap trash: [
     "~/Library/Application Support/TunnelDeck",
-    "~/Library/Preferences/io.github.ff2248.tunneldeck.plist",
+    "~/Library/Preferences/io.github.berniechiu.tunneldeck.plist",
   ]
 end
 CASK

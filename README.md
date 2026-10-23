@@ -66,8 +66,8 @@ Click a tunnel in the menu to open it in Settings, where **Overview**, **Configu
 ### Homebrew (recommended)
 
 ```bash
-brew tap ff2248/tunneldeck
-brew trust ff2248/tunneldeck   # Homebrew loads third-party taps only after you trust them
+brew tap berniechiu/tunneldeck
+brew trust berniechiu/tunneldeck   # Homebrew loads third-party taps only after you trust them
 brew install --cask tunneldeck
 ```
 
@@ -75,7 +75,7 @@ On first launch, see [Approve first launch](#approve-first-launch).
 
 ### Direct download
 
-Download the latest `TunnelDeck-vX.Y.Z.dmg` from [Releases](https://github.com/ff2248/TunnelDeck/releases/latest), open it, and drag **TunnelDeck.app** to **Applications**.
+Download the latest `TunnelDeck-vX.Y.Z.dmg` from [Releases](https://github.com/berniechiu/TunnelDeck/releases/latest), open it, and drag **TunnelDeck.app** to **Applications**.
 
 On first launch, see [Approve first launch](#approve-first-launch).
 
@@ -84,7 +84,7 @@ On first launch, see [Approve first launch](#approve-first-launch).
 Requires macOS 26 or later and Xcode 26 or later.
 
 ```bash
-git clone https://github.com/ff2248/TunnelDeck.git
+git clone https://github.com/berniechiu/TunnelDeck.git
 cd TunnelDeck
 scripts/build-app.sh                        # builds build/TunnelDeck.app
 cp -R build/TunnelDeck.app /Applications/
@@ -118,7 +118,7 @@ To start TunnelDeck when you log in, add it under **System Settings → General 
 | Homebrew | `brew uninstall --cask --zap tunneldeck` |
 | DMG or source | `rm -rf /Applications/TunnelDeck.app` |
 
-Your tunnels are saved in `~/Library/Application Support/TunnelDeck/tunnels.json` and the language in `~/Library/Preferences/io.github.ff2248.tunneldeck.plist`. `--zap` removes both. Without Homebrew, delete them yourself if you like.
+Your tunnels are saved in `~/Library/Application Support/TunnelDeck/tunnels.json` and the language in `~/Library/Preferences/io.github.berniechiu.tunneldeck.plist`. `--zap` removes both. Without Homebrew, delete them yourself if you like.
 
 ## Security
 
