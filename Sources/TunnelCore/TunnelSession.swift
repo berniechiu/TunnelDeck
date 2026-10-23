@@ -110,6 +110,14 @@ public final class TunnelSession: Identifiable {
         runID += 1
         let run = runID
         runStderr = []
+        // A child that inherited stderr, such as a ProxyCommand, can keep the pipe open after ssh exits,
+        // so the end of the run is whichever comes first: stderr closing, or a second after the exit.
+        process.terminationHandler = { [weak self] _ in
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                await self?.processEnded(run: run)
+            }
+        }
         do {
             try process.run()
         } catch {
@@ -141,7 +149,7 @@ public final class TunnelSession: Identifiable {
     }
 
     private func processEnded(run: Int) {
-        guard run == runID else { return }
+        guard run == runID, process != nil else { return }
         process = nil
         pollTask?.cancel()
         sockets = SocketSnapshot()

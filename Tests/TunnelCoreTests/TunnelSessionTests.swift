@@ -159,6 +159,27 @@ func makeSession(_ fake: FakeSSH, port: Int) -> TunnelSession {
         })
     }
 
+    @Test func exitIsNoticedWhileAChildStillHoldsStderr() async throws {
+        // Like a ProxyCommand that outlives ssh: the background sleep keeps the stderr pipe open for 30 seconds.
+        let fake = try FakeSSH(#"""
+        sleep 30 &
+        echo $! >> "$MARKER.children"
+        echo 'ssh: connect to host bastion port 22: Operation timed out' >&2
+        exit 255
+        """#)
+        let session = makeSession(fake, port: try freePort())
+        defer {
+            session.stop()
+            let children = (try? String(contentsOf: URL(filePath: fake.marker.path + ".children"), encoding: .utf8)) ?? ""
+            children.split(separator: "\n").compactMap { pid_t($0) }.forEach { kill($0, SIGKILL) }
+        }
+        session.start()
+        #expect(await eventually(timeout: .seconds(3)) {
+            if case .reconnecting(_, _, .timedOut) = session.status.phase { return true }
+            return false
+        })
+    }
+
     @Test func droppedConnectionReconnects() async throws {
         let fake = try FakeSSH(FakeSSH.dropOnce)
         let session = makeSession(fake, port: try freePort())
