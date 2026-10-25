@@ -1,4 +1,3 @@
-/// Light or dark windows, or whatever macOS is set to.
 public enum AppAppearance: String, CaseIterable, Identifiable, Sendable {
     case system
     case light

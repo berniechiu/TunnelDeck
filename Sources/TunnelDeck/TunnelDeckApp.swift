@@ -16,7 +16,8 @@ struct TunnelDeckApp: App {
             MenuBarIcon(store: delegate.model.store)
         }
         .menuBarExtraStyle(.window)
-        // Set on the app rather than per view, so alerts and the file picker follow it too.
+        // Set on the app rather than per view, so alerts and the file picker follow it too. Attached to the
+        // menu bar scene because it always exists; the status item keeps the menu bar's own appearance.
         .onChange(of: appearance, initial: true) { NSApp.appearance = appearance.nsAppearance }
 
         Window("TunnelDeck", id: SettingsWindow.id) {

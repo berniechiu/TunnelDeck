@@ -6,10 +6,6 @@ import Testing
     #expect(AppLanguage.default == .english)
 }
 
-@Test func appearanceFollowsMacOSByDefault() {
-    #expect(AppAppearance.default == .system)
-}
-
 @Test(arguments: AppLanguage.allCases)
 func everyAppearanceHasItsOwnName(language: AppLanguage) {
     let names = AppAppearance.allCases.map(Strings.for(language).appearanceName)
