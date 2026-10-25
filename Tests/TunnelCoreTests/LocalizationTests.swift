@@ -6,6 +6,16 @@ import Testing
     #expect(AppLanguage.default == .english)
 }
 
+@Test func appearanceFollowsMacOSByDefault() {
+    #expect(AppAppearance.default == .system)
+}
+
+@Test(arguments: AppLanguage.allCases)
+func everyAppearanceHasItsOwnName(language: AppLanguage) {
+    let names = AppAppearance.allCases.map(Strings.for(language).appearanceName)
+    #expect(Set(names).count == AppAppearance.allCases.count)
+}
+
 @Test func hostKeyMessagesAreFixedCopy() {
     let en = Strings.for(.english)
     #expect(en.failure(.hostKeyChanged) == "The host key doesn't match known_hosts, which could mean a man-in-the-middle attack. Check whether the server was rebuilt, and only then update known_hosts yourself.")

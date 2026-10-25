@@ -5,6 +5,7 @@ import TunnelCore
 struct TunnelDeckApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @AppStorage(AppLanguage.storageKey) private var language = AppLanguage.default
+    @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.default
 
     var body: some Scene {
         let strings = Strings.for(language)
@@ -15,6 +16,8 @@ struct TunnelDeckApp: App {
             MenuBarIcon(store: delegate.model.store)
         }
         .menuBarExtraStyle(.window)
+        // Set on the app rather than per view, so alerts and the file picker follow it too.
+        .onChange(of: appearance, initial: true) { NSApp.appearance = appearance.nsAppearance }
 
         Window("TunnelDeck", id: SettingsWindow.id) {
             SettingsWindow(model: delegate.model)
@@ -26,6 +29,17 @@ struct TunnelDeckApp: App {
 
 extension EnvironmentValues {
     @Entry var strings = Strings.for(.default)
+}
+
+extension AppAppearance {
+    /// Nil hands the choice back to macOS.
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
 }
 
 @MainActor @Observable

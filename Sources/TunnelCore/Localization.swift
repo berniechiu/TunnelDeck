@@ -65,6 +65,8 @@ public struct Strings: Sendable {
     public let preferences: String
     public let done: String
     public let language: String
+    public let appearance: String
+    public let appearanceName: @Sendable (AppAppearance) -> String
     public let selectTunnel: String
     public let cannotStart: String
     public let duplicate: String
@@ -188,6 +190,14 @@ public struct Strings: Sendable {
         preferences: "Preferences…",
         done: "Done",
         language: "Language",
+        appearance: "Appearance",
+        appearanceName: {
+            switch $0 {
+            case .system: "System"
+            case .light: "Light"
+            case .dark: "Dark"
+            }
+        },
         selectTunnel: "Select a tunnel",
         cannotStart: "Can't start",
         duplicate: "Duplicate",
@@ -278,6 +288,14 @@ public struct Strings: Sendable {
         preferences: "偏好設定…",
         done: "完成",
         language: "語言",
+        appearance: "外觀",
+        appearanceName: {
+            switch $0 {
+            case .system: "跟隨系統"
+            case .light: "淺色"
+            case .dark: "深色"
+            }
+        },
         selectTunnel: "選擇一條 tunnel",
         cannotStart: "無法啟動",
         duplicate: "複製",
