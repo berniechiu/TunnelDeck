@@ -36,7 +36,7 @@ People who reach private databases or services through an SSH bastion and are ti
 - **Clear failures**: errors that retrying can't fix, such as a rejected key, a changed host key or a broken `~/.ssh/config`, stop the tunnel and say what to do. A busy local port names the program holding it, with its PID.
 - **Notifications** when an automatic reconnect fails or a tunnel stops on its own.
 - **Inspection**: per-tunnel ssh log and the equivalent `ssh` command, ready to paste into Terminal.
-- **English and Traditional Chinese** interface, switchable in Preferences.
+- **English and Traditional Chinese** interface, and a light, dark or system appearance, both set in Preferences.
 - **Safe defaults**: see [Security](#security).
 
 ## Usage
@@ -59,7 +59,7 @@ Before the first connection to a new server, run `ssh <host>` once in Terminal a
 
 Click a tunnel in the menu to open it in Settings, where **Overview**, **Configuration** and **Log** show its details. Saving a running tunnel reconnects it.
 
-**Preferences…** at the bottom of the Settings sidebar switches the language between English (default) and 繁體中文.
+**Preferences…** at the bottom of the Settings sidebar switches the language between English (default) and 繁體中文, and the appearance between System (default), Light and Dark.
 
 ## Install
 
@@ -118,7 +118,7 @@ To start TunnelDeck when you log in, add it under **System Settings → General 
 | Homebrew | `brew uninstall --cask --zap tunneldeck` |
 | DMG or source | `rm -rf /Applications/TunnelDeck.app` |
 
-Your tunnels are saved in `~/Library/Application Support/TunnelDeck/tunnels.json` and the language in `~/Library/Preferences/io.github.berniechiu.tunneldeck.plist`. `--zap` removes both. Without Homebrew, delete them yourself if you like.
+Your tunnels are saved in `~/Library/Application Support/TunnelDeck/tunnels.json` and the language and appearance in `~/Library/Preferences/io.github.berniechiu.tunneldeck.plist`. `--zap` removes both. Without Homebrew, delete them yourself if you like.
 
 ## Security
 

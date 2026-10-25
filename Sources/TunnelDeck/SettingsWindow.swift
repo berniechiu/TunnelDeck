@@ -136,6 +136,7 @@ private struct SidebarRow: View {
 
 private struct PreferencesView: View {
     @AppStorage(AppLanguage.storageKey) private var language = AppLanguage.default
+    @AppStorage(AppAppearance.storageKey) private var appearance = AppAppearance.default
     @Environment(\.strings) private var strings
     @Environment(\.dismiss) private var dismiss
 
@@ -144,6 +145,9 @@ private struct PreferencesView: View {
             Form {
                 Picker(strings.language, selection: $language) {
                     ForEach(AppLanguage.allCases) { Text(verbatim: $0.displayName).tag($0) }
+                }
+                Picker(strings.appearance, selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { Text(strings.appearanceName($0)).tag($0) }
                 }
             }
             .formStyle(.grouped)
