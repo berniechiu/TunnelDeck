@@ -9,7 +9,7 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.github.ff2248.tunneldeck</string>
+	<string>io.github.berniechiu.tunneldeck</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>en</string>

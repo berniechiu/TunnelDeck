@@ -2,6 +2,11 @@ import AppKit
 import SwiftUI
 import TunnelCore
 
+extension Forward {
+    /// A new forward in the editor; local port 0 shows as an empty field.
+    static var blank: Forward { Forward(localPort: 0, remoteHost: "", remotePort: 3306) }
+}
+
 /// Edits a tunnel as text fields and converts to `Tunnel` on save, so half-typed numbers never reach the store.
 struct TunnelEditorView: View {
     private struct ForwardDraft: Identifiable {
@@ -9,6 +14,18 @@ struct TunnelEditorView: View {
         var localPort: String
         var remoteHost: String
         var remotePort: String
+
+        init(_ forward: Forward) {
+            id = forward.id
+            localPort = forward.localPort == 0 ? "" : String(forward.localPort)
+            remoteHost = forward.remoteHost
+            remotePort = String(forward.remotePort)
+        }
+
+        /// What gets saved: trimmed, and 0 for text that isn't a number, which validation rejects.
+        var value: Forward {
+            Forward(id: id, localPort: Int(trimmed(localPort)) ?? 0, remoteHost: trimmed(remoteHost), remotePort: Int(trimmed(remotePort)) ?? 0)
+        }
     }
 
     let store: TunnelStore
@@ -74,7 +91,7 @@ struct TunnelEditorView: View {
                     }
                 }
                 Button(strings.addForward, systemImage: "plus") {
-                    forwards.append(ForwardDraft(id: UUID(), localPort: "", remoteHost: "", remotePort: "3306"))
+                    forwards.append(ForwardDraft(.blank))
                 }
                 .buttonStyle(.borderless)
                 issueText(.noForwards)
@@ -113,8 +130,10 @@ struct TunnelEditorView: View {
     }
 
     private func forwardIssue(_ forward: ForwardDraft) -> String? {
-        let candidates: [ValidationIssue] = [.invalidLocalPort(forward.id), .invalidRemoteHost(forward.id), .invalidRemotePort(forward.id)]
-            + (Int(forward.localPort).map { [.duplicateLocalPort($0)] } ?? [])
+        let candidates: [ValidationIssue] = [
+            .invalidLocalPort(forward.id), .invalidRemoteHost(forward.id), .invalidRemotePort(forward.id),
+            .duplicateLocalPort(forward.value.localPort),
+        ]
         return candidates.first(where: issues.contains).map(strings.validation)
     }
 
@@ -124,33 +143,18 @@ struct TunnelEditorView: View {
         user = original.user ?? ""
         port = original.port.map(String.init) ?? ""
         identityFile = original.identityFile ?? ""
-        forwards = original.forwards.map {
-            ForwardDraft(
-                id: $0.id,
-                localPort: $0.localPort == 0 ? "" : String($0.localPort),
-                remoteHost: $0.remoteHost,
-                remotePort: String($0.remotePort)
-            )
-        }
+        forwards = original.forwards.map(ForwardDraft.init)
     }
 
     private func save() {
-        let trimmed = { (value: String) in value.trimmingCharacters(in: .whitespaces) }
         let tunnel = Tunnel(
             id: original.id,
             name: trimmed(name),
             host: trimmed(host),
-            user: trimmed(user).isEmpty ? nil : trimmed(user),
-            port: trimmed(port).isEmpty ? nil : Int(trimmed(port)) ?? 0,
-            identityFile: identityFile.isEmpty ? nil : identityFile,
-            forwards: forwards.map {
-                Forward(
-                    id: $0.id,
-                    localPort: Int(trimmed($0.localPort)) ?? 0,
-                    remoteHost: trimmed($0.remoteHost),
-                    remotePort: Int(trimmed($0.remotePort)) ?? 0
-                )
-            }
+            user: trimmed(user).nonEmpty,
+            port: trimmed(port).nonEmpty.map { Int($0) ?? 0 },
+            identityFile: identityFile.nonEmpty,
+            forwards: forwards.map(\.value)
         )
         do {
             try store.upsert(tunnel)
@@ -172,4 +176,8 @@ struct TunnelEditorView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         identityFile = (url.path as NSString).abbreviatingWithTildeInPath
     }
+}
+
+private func trimmed(_ text: String) -> String {
+    text.trimmingCharacters(in: .whitespaces)
 }

@@ -19,34 +19,6 @@ extension TunnelSession {
     }
 }
 
-extension Strings {
-    func label(for phase: TunnelPhase) -> String {
-        switch phase {
-        case .stopped: stopped
-        case .connecting(0): connecting
-        case .connecting(let attempt): reconnectingAttempt(attempt)
-        case .connected: connected
-        case .reconnecting: waitingToReconnect
-        case .failed: failed
-        }
-    }
-
-    /// The one-line status, including live elapsed and countdown values relative to `now`.
-    func line(for status: TunnelStatus, now: Date) -> String {
-        switch status.phase {
-        case .connected(let since):
-            return connectedFor(duration(now.timeIntervalSince(since)))
-        case .reconnecting(let attempt, let retryAt):
-            let countdown = retryIn(max(0, Int(retryAt.timeIntervalSince(now).rounded(.up))), attempt)
-            return status.lastFailure.map { "\(failure($0)) \(countdown)" } ?? countdown
-        case .failed(let reason):
-            return failure(reason)
-        default:
-            return label(for: status.phase)
-        }
-    }
-}
-
 /// The live status line: elapsed time and countdowns tick every second, and failures are red.
 struct StatusLine: View {
     let status: TunnelStatus

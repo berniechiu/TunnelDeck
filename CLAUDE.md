@@ -11,7 +11,7 @@ scripts/build-app.sh        # release build, assembles and ad-hoc signs build/Tu
 
 ## Releasing
 
-Publish a GitHub Release with a `vX.Y.Z` tag. `.github/workflows/release.yml` then tests, builds with that version, uploads `TunnelDeck-vX.Y.Z.dmg` and its `.sha256`, and pushes the updated cask to `ff2248/homebrew-tunneldeck` (`Casks/tunneldeck.rb`) through the `HOMEBREW_TAP_DEPLOY_KEY` secret. A prerelease gets the DMG but leaves the cask alone. The version in `Resources/Info.plist` is only the default for local builds, and `scripts/build-app.sh` always builds a universal (arm64 and x86_64) binary.
+Publish a GitHub Release with a `vX.Y.Z` tag. `.github/workflows/release.yml` then tests, builds with that version, uploads `TunnelDeck-vX.Y.Z.dmg` and its `.sha256`, and pushes the updated cask to `berniechiu/homebrew-tunneldeck` (`Casks/tunneldeck.rb`) through the `HOMEBREW_TAP_DEPLOY_KEY` secret. A prerelease gets the DMG but leaves the cask alone. The version in `Resources/Info.plist` is only the default for local builds, and `scripts/build-app.sh` always builds a universal (arm64 and x86_64) binary.
 
 ## Modules
 
@@ -29,7 +29,7 @@ Publish a GitHub Release with a `vX.Y.Z` tag. `.github/workflows/release.yml` th
 - The app stores no secrets. `tunnels.json` stays mode 0600 and holds names, hosts, ports and key paths only.
 - No network access besides the ssh processes, and no third-party dependencies.
 - Host, user and remote host are validated so they can never be read as ssh options, and the destination follows `--`.
-- Every ssh runs with `BatchMode=yes` and `ControlMaster=no`, so the app owns the process it monitors and terminates. Quitting must leave no ssh process behind.
+- Every ssh runs with `BatchMode=yes`, `ControlMaster=no` and `ForkAfterAuthentication=no`, so the app owns the process it monitors and terminates. Quitting must leave no ssh process behind.
 - Every user-visible string lives in `Strings` (`Sources/TunnelCore/Localization.swift`). English is the default. To add a language, add an `AppLanguage` case and a full `Strings` value; a missing string fails to compile.
 
 ## Tests

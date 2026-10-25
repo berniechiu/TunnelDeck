@@ -152,7 +152,7 @@ private struct TunnelRow: View {
 
     private var destination: String {
         let tunnel = session.tunnel
-        let user = tunnel.user.map { $0.isEmpty ? "" : "\($0)@" } ?? ""
+        let user = tunnel.user?.nonEmpty.map { "\($0)@" } ?? ""
         let port = tunnel.port.map { $0 == 22 ? "" : ":\($0)" } ?? ""
         return user + tunnel.host + port
     }

@@ -2,11 +2,6 @@ import Foundation
 import Testing
 @testable import TunnelCore
 
-private let allFailures: [TunnelFailure] = [
-    .hostKeyChanged, .hostKeyUnknown, .authenticationFailed, .portInUse(3308, nil), .configError("x"),
-    .hostNotFound, .connectionRefused, .timedOut, .networkUnreachable, .connectionLost, .unknown("x"),
-]
-
 @Test func englishIsTheDefault() {
     #expect(AppLanguage.default == .english)
 }
@@ -24,7 +19,7 @@ private let allFailures: [TunnelFailure] = [
 @Test(arguments: AppLanguage.allCases)
 func noMessageSuggestsBypassingHostKeyChecks(language: AppLanguage) {
     let strings = Strings.for(language)
-    for failure in allFailures {
+    for failure in nonRetryableFailures + retryableFailures {
         let message = strings.failure(failure)
         #expect(!message.contains("StrictHostKeyChecking"))
         #expect(!message.localizedCaseInsensitiveContains("skip"))
@@ -61,6 +56,16 @@ private let sampleDurations: [TimeInterval] = [45, 13 * 60, 2 * 3600 + 13 * 60, 
     #expect(sampleDurations.map(en.duration) == ["45s", "13m", "2h 13m", "2d 3h"])
     let zh = Strings.for(.traditionalChinese)
     #expect(sampleDurations.map(zh.duration) == ["45 秒", "13 分", "2 小時 13 分", "2 天 3 小時"])
+}
+
+@Test func statusLines() {
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    let en = Strings.for(.english)
+    let waiting = TunnelStatus(phase: .reconnecting(attempt: 2, retryAt: now.addingTimeInterval(3.2), after: .timedOut))
+    #expect(en.line(for: waiting, now: now) == "The connection timed out. Reconnect attempt 2 in 4s")
+    #expect(en.line(for: TunnelStatus(phase: .connected(since: now.addingTimeInterval(-45))), now: now) == "Connected for 45s")
+    #expect(en.line(for: TunnelStatus(phase: .connecting(attempt: 0)), now: now) == "Connecting…")
+    #expect(en.line(for: TunnelStatus(phase: .connecting(attempt: 3)), now: now) == "Reconnecting, attempt 3…")
 }
 
 @Test func clientLabels() {

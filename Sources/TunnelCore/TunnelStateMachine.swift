@@ -4,7 +4,7 @@ public enum TunnelPhase: Equatable, Sendable {
     case stopped
     case connecting(attempt: Int)
     case connected(since: Date)
-    case reconnecting(attempt: Int, retryAt: Date)
+    case reconnecting(attempt: Int, retryAt: Date, after: TunnelFailure)
     case failed(TunnelFailure)
 
     public var isRunning: Bool {
@@ -39,8 +39,6 @@ public struct TunnelStatus: Equatable, Sendable {
     public var phase: TunnelPhase = .stopped
     public var reconnectCount = 0
     public var lastDisconnect: Disconnect?
-    /// Why the latest run ended, until the tunnel is connected again.
-    public var lastFailure: TunnelFailure?
     /// Consecutive connections that dropped before becoming stable; drives the backoff for a flapping server.
     public var quickDrops = 0
     /// Whether this outage already produced a notification, so a long outage notifies once.
@@ -72,8 +70,8 @@ public enum ReconnectPolicy {
     /// A connection that lasts this long counts as stable, so its drop is retried right away.
     public static let stableAfter: TimeInterval = 30
 
-    public static func delay(forAttempt attempt: Int) -> Duration {
-        attempt >= 5 ? .seconds(30) : .seconds(1 << attempt)
+    public static func delay(forAttempt attempt: Int) -> TimeInterval {
+        attempt >= 5 ? 30 : TimeInterval(1 << attempt)
     }
 }
 
@@ -88,12 +86,10 @@ public enum TunnelStateMachine {
 
         case (.connecting, .forwardsListening):
             status.phase = .connected(since: now)
-            status.lastFailure = nil
             status.outageNotified = false
             return []
 
         case (.connecting(let attempt), .processExited(let failure)):
-            status.lastFailure = failure
             // A manual start (attempt 0) has the user watching. Automatic reconnects notify once per outage,
             // and again when they give up.
             guard failure.isRetryable else {
@@ -102,13 +98,9 @@ public enum TunnelStateMachine {
             }
             let notify: [TunnelEffect] = attempt >= 1 && !status.outageNotified ? [.notify(failure)] : []
             if !notify.isEmpty { status.outageNotified = true }
-            let next = attempt + 1
-            let delay = ReconnectPolicy.delay(forAttempt: next)
-            status.phase = .reconnecting(attempt: next, retryAt: now.addingTimeInterval(delay.seconds))
-            return [.scheduleRetry(after: delay)] + notify
+            return [scheduleReconnect(&status, attempt: attempt + 1, after: failure, now: now)] + notify
 
         case (.connected(let since), .processExited(let failure)):
-            status.lastFailure = failure
             status.reconnectCount += 1
             status.lastDisconnect = Disconnect(at: now, reason: failure)
             guard failure.isRetryable else {
@@ -121,15 +113,13 @@ public enum TunnelStateMachine {
                 return [.launch]
             }
             status.quickDrops += 1
-            let delay = ReconnectPolicy.delay(forAttempt: status.quickDrops)
-            status.phase = .reconnecting(attempt: status.quickDrops, retryAt: now.addingTimeInterval(delay.seconds))
-            return [.scheduleRetry(after: delay)]
+            return [scheduleReconnect(&status, attempt: status.quickDrops, after: failure, now: now)]
 
-        case (.reconnecting(let attempt, _), .retryDue):
+        case (.reconnecting(let attempt, _, _), .retryDue):
             status.phase = .connecting(attempt: attempt)
             return [.launch]
 
-        case (.reconnecting(let attempt, _), .networkChanged):
+        case (.reconnecting(let attempt, _, _), .networkChanged):
             status.phase = .connecting(attempt: attempt)
             return [.cancelRetry, .launch]
 
@@ -145,11 +135,12 @@ public enum TunnelStateMachine {
             return []
         }
     }
-}
 
-extension Duration {
-    var seconds: TimeInterval {
-        let (seconds, attoseconds) = components
-        return TimeInterval(seconds) + TimeInterval(attoseconds) / 1e18
+    private static func scheduleReconnect(
+        _ status: inout TunnelStatus, attempt: Int, after failure: TunnelFailure, now: Date
+    ) -> TunnelEffect {
+        let delay = ReconnectPolicy.delay(forAttempt: attempt)
+        status.phase = .reconnecting(attempt: attempt, retryAt: now.addingTimeInterval(delay), after: failure)
+        return .scheduleRetry(after: .seconds(delay))
     }
 }

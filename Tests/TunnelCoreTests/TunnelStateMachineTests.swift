@@ -25,13 +25,13 @@ func startLaunches(from phase: TunnelPhase) {
 
 @Test func retryableFailureOnManualStartSchedulesRetryWithoutNotifying() {
     let (status, effects) = reduce(.connecting(attempt: 0), .processExited(.timedOut))
-    #expect(status.phase == .reconnecting(attempt: 1, retryAt: now.addingTimeInterval(2)))
+    #expect(status.phase == .reconnecting(attempt: 1, retryAt: now.addingTimeInterval(2), after: .timedOut))
     #expect(effects == [.scheduleRetry(after: .seconds(2))])
 }
 
 @Test func firstReconnectFailureNotifies() {
     let (status, effects) = reduce(.connecting(attempt: 1), .processExited(.timedOut))
-    #expect(status.phase == .reconnecting(attempt: 2, retryAt: now.addingTimeInterval(4)))
+    #expect(status.phase == .reconnecting(attempt: 2, retryAt: now.addingTimeInterval(4), after: .timedOut))
     #expect(effects == [.scheduleRetry(after: .seconds(4)), .notify(.timedOut)])
 }
 
@@ -87,7 +87,7 @@ func startLaunches(from phase: TunnelPhase) {
 @Test func dropSoonAfterConnectingBacksOff() {
     var status = TunnelStatus(phase: .connected(since: now.addingTimeInterval(-5)))
     let effects = TunnelStateMachine.reduce(&status, .processExited(.connectionLost), now: now)
-    #expect(status.phase == .reconnecting(attempt: 1, retryAt: now.addingTimeInterval(2)))
+    #expect(status.phase == .reconnecting(attempt: 1, retryAt: now.addingTimeInterval(2), after: .connectionLost))
     #expect(status.quickDrops == 1)
     #expect(status.reconnectCount == 1)
     #expect(effects == [.scheduleRetry(after: .seconds(2))])
@@ -97,7 +97,7 @@ func startLaunches(from phase: TunnelPhase) {
     var status = TunnelStatus(phase: .connected(since: now.addingTimeInterval(-5)))
     status.quickDrops = 3
     let effects = TunnelStateMachine.reduce(&status, .processExited(.connectionLost), now: now)
-    #expect(status.phase == .reconnecting(attempt: 4, retryAt: now.addingTimeInterval(16)))
+    #expect(status.phase == .reconnecting(attempt: 4, retryAt: now.addingTimeInterval(16), after: .connectionLost))
     #expect(effects == [.scheduleRetry(after: .seconds(16))])
 }
 
@@ -119,19 +119,19 @@ func startLaunches(from phase: TunnelPhase) {
 }
 
 @Test func retryDueLaunches() {
-    let (status, effects) = reduce(.reconnecting(attempt: 3, retryAt: now), .retryDue)
+    let (status, effects) = reduce(.reconnecting(attempt: 3, retryAt: now, after: .timedOut), .retryDue)
     #expect(status.phase == .connecting(attempt: 3))
     #expect(effects == [.launch])
 }
 
 @Test func networkChangeSkipsTheWait() {
-    let (status, effects) = reduce(.reconnecting(attempt: 3, retryAt: now.addingTimeInterval(30)), .networkChanged)
+    let (status, effects) = reduce(.reconnecting(attempt: 3, retryAt: now.addingTimeInterval(30), after: .timedOut), .networkChanged)
     #expect(status.phase == .connecting(attempt: 3))
     #expect(effects == [.cancelRetry, .launch])
 }
 
 @Test(arguments: [
-    TunnelPhase.connecting(attempt: 0), .connected(since: now), .reconnecting(attempt: 2, retryAt: now),
+    TunnelPhase.connecting(attempt: 0), .connected(since: now), .reconnecting(attempt: 2, retryAt: now, after: .timedOut),
 ])
 func stopTerminates(from phase: TunnelPhase) {
     let (status, effects) = reduce(phase, .stop)
@@ -146,19 +146,8 @@ func stoppedIgnoresLateEvents(event: TunnelEvent) {
     #expect(effects == [])
 }
 
-@Test func lastFailureTracksTheCurrentOutage() {
-    var status = TunnelStatus(phase: .connecting(attempt: 1))
-    _ = TunnelStateMachine.reduce(&status, .processExited(.timedOut), now: now)
-    #expect(status.lastFailure == .timedOut)
-    _ = TunnelStateMachine.reduce(&status, .retryDue, now: now)
-    _ = TunnelStateMachine.reduce(&status, .forwardsListening, now: now)
-    #expect(status.lastFailure == nil)
-    _ = TunnelStateMachine.reduce(&status, .processExited(.connectionLost), now: now)
-    #expect(status.lastFailure == .connectionLost)
-}
-
 @Test func reconnectDelays() {
-    #expect((1...7).map(ReconnectPolicy.delay(forAttempt:)) == [2, 4, 8, 16, 30, 30, 30].map { Duration.seconds($0) })
+    #expect((1...7).map(ReconnectPolicy.delay(forAttempt:)) == [2, 4, 8, 16, 30, 30, 30])
 }
 
 @Test func manualStartForgetsEarlierQuickDrops() {

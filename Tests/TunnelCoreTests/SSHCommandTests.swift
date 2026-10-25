@@ -5,7 +5,7 @@ import Testing
 private let fixedOptions = [
     "-N", "-T",
     "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes",
-    "-o", "ControlMaster=no", "-o", "ControlPath=none",
+    "-o", "ControlMaster=no", "-o", "ControlPath=none", "-o", "ForkAfterAuthentication=no",
     "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3",
     "-o", "ConnectTimeout=10", "-o", "LogLevel=VERBOSE",
 ]
@@ -45,6 +45,27 @@ private let fixedOptions = [
     let joined = SSHCommand.arguments(for: t, homeDirectory: "/Users/me").joined(separator: " ")
     #expect(!joined.contains("StrictHostKeyChecking"))
     #expect(!joined.contains("UserKnownHostsFile"))
+}
+
+/// `ssh -G` prints the configuration ssh would use without connecting, so this checks real ssh option precedence.
+@Test func sshConfigCannotSendSSHToTheBackground() throws {
+    let config = FileManager.default.temporaryDirectory.appending(path: "ssh-config-\(UUID().uuidString)")
+    try "Host bastion\n  ForkAfterAuthentication yes\n".write(to: config, atomically: true, encoding: .utf8)
+    defer { try? FileManager.default.removeItem(at: config) }
+    let t = Tunnel(name: "dev", host: "bastion", forwards: [Forward(localPort: 3311, remoteHost: "db", remotePort: 3306)])
+
+    let process = Process()
+    process.executableURL = URL(filePath: SSHCommand.executable)
+    process.arguments = ["-G", "-F", config.path] + SSHCommand.arguments(for: t, homeDirectory: "/Users/me")
+    let output = Pipe()
+    process.standardOutput = output
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    let resolved = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    process.waitUntilExit()
+
+    #expect(process.terminationStatus == 0)
+    #expect(resolved.split(separator: "\n").contains("forkafterauthentication no"))
 }
 
 @Test func previewIsPasteableIntoShell() {

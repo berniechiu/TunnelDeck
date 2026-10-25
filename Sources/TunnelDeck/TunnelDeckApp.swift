@@ -7,9 +7,10 @@ struct TunnelDeckApp: App {
     @AppStorage(AppLanguage.storageKey) private var language = AppLanguage.default
 
     var body: some Scene {
+        let strings = Strings.for(language)
         MenuBarExtra {
             MenuBarView(model: delegate.model)
-                .environment(\.strings, Strings.for(language))
+                .environment(\.strings, strings)
         } label: {
             MenuBarIcon(store: delegate.model.store)
         }
@@ -17,7 +18,7 @@ struct TunnelDeckApp: App {
 
         Window("TunnelDeck", id: SettingsWindow.id) {
             SettingsWindow(model: delegate.model)
-                .environment(\.strings, Strings.for(language))
+                .environment(\.strings, strings)
         }
         .defaultLaunchBehavior(.suppressed)
     }
@@ -61,6 +62,7 @@ final class AppModel {
 /// template image like other idle menu bar items.
 struct MenuBarIcon: View {
     let store: TunnelStore?
+    // Read here rather than from the environment, so a language change redraws the separately hosted status item.
     @AppStorage(AppLanguage.storageKey) private var language = AppLanguage.default
 
     // Reading `aggregate` here, in a view body, is what lets SwiftUI redraw the icon when a tunnel changes state.

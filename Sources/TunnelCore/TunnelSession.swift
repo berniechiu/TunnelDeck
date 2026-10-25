@@ -18,10 +18,9 @@ public final class TunnelSession: Identifiable {
     public private(set) var sockets = SocketSnapshot()
     /// Local processes connected to each forwarded port, refreshed when the connection count changes.
     public private(set) var clients: [Int: [PortClient]] = [:]
-    public private(set) var pid: pid_t?
+    public var pid: pid_t? { process?.processIdentifier }
 
     private let executable: String
-    private let homeDirectory: String
     private let notify: @MainActor (Tunnel, TunnelFailure) -> Void
 
     private var process: Process?
@@ -37,23 +36,19 @@ public final class TunnelSession: Identifiable {
     public init(
         tunnel: Tunnel,
         executable: String = SSHCommand.executable,
-        homeDirectory: String = NSHomeDirectory(),
         notify: @escaping @MainActor (Tunnel, TunnelFailure) -> Void
     ) {
         id = tunnel.id
         self.tunnel = tunnel
         self.executable = executable
-        self.homeDirectory = homeDirectory
         self.notify = notify
     }
 
     var isProcessRunning: Bool { process?.isRunning == true }
 
-    func killImmediately() {
+    func forceKill() {
         guard let process, process.isRunning else { return }
         kill(process.processIdentifier, SIGKILL)
-        let deadline = Date().addingTimeInterval(0.5)
-        while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
     }
 
     public func start() {
@@ -83,7 +78,11 @@ public final class TunnelSession: Identifiable {
     }
 
     private func send(_ event: TunnelEvent) {
-        for effect in TunnelStateMachine.reduce(&status, event, now: Date()) {
+        var next = status
+        let effects = TunnelStateMachine.reduce(&next, event, now: Date())
+        // Writing through `&status` would invalidate every view that reads it, even for an ignored event.
+        if next != status { status = next }
+        for effect in effects {
             switch effect {
             case .launch: launch()
             case .terminate: terminate()
@@ -102,7 +101,7 @@ public final class TunnelSession: Identifiable {
         }
         let process = Process()
         process.executableURL = URL(filePath: executable)
-        process.arguments = SSHCommand.arguments(for: tunnel, homeDirectory: homeDirectory)
+        process.arguments = SSHCommand.arguments(for: tunnel, homeDirectory: NSHomeDirectory())
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         let pipe = Pipe()
@@ -111,6 +110,14 @@ public final class TunnelSession: Identifiable {
         runID += 1
         let run = runID
         runStderr = []
+        // A child that inherited stderr, such as a ProxyCommand, can keep the pipe open after ssh exits,
+        // so the end of the run is whichever comes first: stderr closing, or a second after the exit.
+        process.terminationHandler = { [weak self] _ in
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                await self?.processEnded(run: run)
+            }
+        }
         do {
             try process.run()
         } catch {
@@ -118,7 +125,6 @@ public final class TunnelSession: Identifiable {
             return
         }
         self.process = process
-        pid = process.processIdentifier
 
         let handle = pipe.fileHandleForReading
         Task.detached { [weak self] in
@@ -143,9 +149,8 @@ public final class TunnelSession: Identifiable {
     }
 
     private func processEnded(run: Int) {
-        guard run == runID else { return }
+        guard run == runID, process != nil else { return }
         process = nil
-        pid = nil
         pollTask?.cancel()
         sockets = SocketSnapshot()
         clients = [:]
@@ -186,18 +191,21 @@ public final class TunnelSession: Identifiable {
             while !Task.isCancelled {
                 guard let self, run == self.runID, let pid = self.pid else { return }
                 let snapshot = SocketInspector.snapshot(pid: pid)
+                let clientsChanged = snapshot.clientCounts != self.sockets.clientCounts
                 // Assigning an equal value would still invalidate every view that reads `sockets`.
-                if snapshot != self.sockets {
-                    if snapshot.clientCounts != self.sockets.clientCounts {
-                        self.clients = snapshot.clientCounts.isEmpty
-                            ? [:]
-                            : SocketInspector.clientProcesses(connectedTo: Set(snapshot.clientCounts.keys), excluding: pid)
-                    }
-                    self.sockets = snapshot
-                }
+                if snapshot != self.sockets { self.sockets = snapshot }
                 if case .connecting = self.status.phase,
                    self.tunnel.forwards.allSatisfy({ snapshot.isListening(on: $0.localPort) }) {
                     self.send(.forwardsListening)
+                }
+                if clientsChanged {
+                    let ports = Set(snapshot.clientCounts.keys)
+                    // A scan of every process, so it stays off the main actor.
+                    let clients = ports.isEmpty
+                        ? [:]
+                        : await Task.detached { SocketInspector.clientProcesses(connectedTo: ports, excluding: pid) }.value
+                    guard !Task.isCancelled else { return }
+                    self.clients = clients
                 }
                 // Connecting needs a quick answer; once connected this only refreshes client counts.
                 try? await Task.sleep(for: .seconds(self.status.phase.isConnected ? 3 : 1))
