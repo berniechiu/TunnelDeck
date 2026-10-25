@@ -63,17 +63,7 @@ Click a tunnel in the menu to open it in Settings, where **Overview**, **Configu
 
 ## Install
 
-### Homebrew (recommended)
-
-```bash
-brew tap berniechiu/tunneldeck
-brew trust berniechiu/tunneldeck   # Homebrew loads third-party taps only after you trust them
-brew install --cask tunneldeck
-```
-
-On first launch, see [Approve first launch](#approve-first-launch).
-
-### Direct download
+### Download
 
 Download the latest `TunnelDeck-vX.Y.Z.dmg` from [Releases](https://github.com/berniechiu/TunnelDeck/releases/latest), open it, and drag **TunnelDeck.app** to **Applications**.
 
@@ -94,7 +84,7 @@ A locally built app never carries the quarantine flag, so it opens without the a
 
 ### Approve first launch
 
-TunnelDeck is signed ad hoc and is not notarized by Apple. When macOS downloads the DMG, through Homebrew or a browser, it marks the app as quarantined and blocks the first launch. Right-clicking the app and choosing **Open** no longer bypasses this, so use one of these:
+TunnelDeck is signed ad hoc and is not notarized by Apple. When you download the DMG, macOS marks the app as quarantined and blocks the first launch. Right-clicking the app and choosing **Open** no longer bypasses this, so use one of these:
 
 - **System Settings**: open **System Settings → Privacy & Security**, scroll to **Security**, click **Open Anyway**, and confirm with your password.
 - **Terminal**: `xattr -dr com.apple.quarantine /Applications/TunnelDeck.app`
@@ -107,18 +97,23 @@ To start TunnelDeck when you log in, add it under **System Settings → General 
 
 | Method | Command |
 |---|---|
-| Homebrew | `brew upgrade --cask tunneldeck` |
 | DMG | Download the new DMG and replace `/Applications/TunnelDeck.app` |
 | Source | `git pull && scripts/build-app.sh && rm -rf /Applications/TunnelDeck.app && cp -R build/TunnelDeck.app /Applications/` |
 
 ### Uninstall
 
-| Method | Command |
-|---|---|
-| Homebrew | `brew uninstall --cask --zap tunneldeck` |
-| DMG or source | `rm -rf /Applications/TunnelDeck.app` |
+Quit TunnelDeck, then delete the app:
 
-Your tunnels are saved in `~/Library/Application Support/TunnelDeck/tunnels.json` and the language and appearance in `~/Library/Preferences/io.github.berniechiu.tunneldeck.plist`. `--zap` removes both. Without Homebrew, delete them yourself if you like.
+```bash
+rm -rf /Applications/TunnelDeck.app
+```
+
+Your tunnels are saved in `~/Library/Application Support/TunnelDeck/tunnels.json` and the language and appearance in `~/Library/Preferences/io.github.berniechiu.tunneldeck.plist`. To remove them too:
+
+```bash
+rm -rf ~/Library/Application\ Support/TunnelDeck
+defaults delete io.github.berniechiu.tunneldeck   # deleting the plist file directly can leave the cached values in place
+```
 
 ## Security
 
