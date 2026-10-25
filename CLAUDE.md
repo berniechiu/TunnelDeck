@@ -11,7 +11,7 @@ scripts/build-app.sh        # release build, assembles and ad-hoc signs build/Tu
 
 ## Releasing
 
-Publish a GitHub Release with a `vX.Y.Z` tag. `.github/workflows/release.yml` then tests, builds with that version, uploads `TunnelDeck-vX.Y.Z.dmg` and its `.sha256`, and pushes the updated cask to `berniechiu/homebrew-tunneldeck` (`Casks/tunneldeck.rb`) through the `HOMEBREW_TAP_DEPLOY_KEY` secret. A prerelease gets the DMG but leaves the cask alone. The version in `Resources/Info.plist` is only the default for local builds, and `scripts/build-app.sh` always builds a universal (arm64 and x86_64) binary.
+Publish a GitHub Release with a `vX.Y.Z` tag and release notes written in the release form. `.github/workflows/release.yml` then tests, builds with that version, and attaches `TunnelDeck-vX.Y.Z.dmg` and its `.sha256` to the release. The version in `Resources/Info.plist` is only the default for local builds, and `scripts/build-app.sh` always builds a universal (arm64 and x86_64) binary.
 
 ## Modules
 
